@@ -23,10 +23,10 @@ kids.example.com {
 	}
 
 	log {
-		output file /var/log/caddy/kids-group-chat.log {
-			roll_size 10MB
-			roll_keep 5
-		}
+		# journald に出す。`journalctl -u caddy` で読む。
+		# ファイルに書かせると、パッケージが /var/log/caddy を作らないので
+		# 「opening log writer」で設定ごと読み込めなくなる。ローテーションも journald 任せにできる
+		output stderr
 		# 部屋のURLがログに残り続けるのは避けたいので、URLは記録しない
 		format filter {
 			wrap console

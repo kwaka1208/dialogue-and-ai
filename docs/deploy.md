@@ -92,6 +92,18 @@ ADMIN_TOKEN=（下のコマンドで作る）
 DATA_DIR=/var/lib/kids-group-chat
 ```
 
+それと、`UPLOAD_DIR` の行を消す。
+
+```bash
+sudo sed -i '/^UPLOAD_DIR=/d' /opt/kids-group-chat/.env
+```
+
+消せば添付は `DATA_DIR` の下（`/var/lib/kids-group-chat/uploads`）に置かれる。`.env.example` のまま
+`UPLOAD_DIR=./data/uploads` を残すと、相対パスはリポジトリの中を指すので
+`/opt/kids-group-chat/server/data/uploads` を作ろうとして起動に失敗する（ユニットの
+`ProtectSystem=strict` で `/opt` には書けない）。`DATA_DIR` を直しても `UPLOAD_DIR` のほうが
+優先されるため、ここは見落としやすい。別の場所に置きたいときだけ、絶対パスで書く。
+
 ```bash
 openssl rand -base64 32   # ADMIN_TOKEN 用
 ```
@@ -131,15 +143,45 @@ Caddy と nginx、どちらの設定例も `deploy/` に入れてある。新し
 
 ### Caddy
 
+証明書を取るには、先にドメインのAレコードをサーバーのIPに向けておく。サーバーから引いて、
+自分のサーバーのIPが返ることを確かめる。
+
 ```bash
-sudo apt install -y caddy
+dig +short kids.example.com
+```
+
+Cloudflare を使うなら、プロキシ（オレンジ雲）はグレー（DNS only）にする。オレンジのままだと
+`104.x.x.x` や `172.67.x.x` が返り、証明書の取得でつまずく。
+
+```bash
+sudo apt install -y caddy   # Ubuntu 24.04 なら universe に入っている
 sudo cp /opt/kids-group-chat/deploy/Caddyfile /etc/caddy/Caddyfile
 sudoedit /etc/caddy/Caddyfile   # kids.example.com を自分のドメインに置き換える
 sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
+sudo systemctl enable --now caddy
 ```
 
-証明書は Caddy が自動で取る。ドメインのAレコードをサーバーに向けてから reload すること。
+初回は `enable --now` を使う。パッケージを入れただけでは Caddy はまだ起動していないので、
+`systemctl reload caddy` を打つと `Job for caddy.service failed.` で止まる。2回目以降、設定を
+変えたときは `reload` でよい。
+
+証明書は Caddy が自動で取る。取れているかはログで見る。
+
+```bash
+sudo journalctl -u caddy -n 40 --no-pager | grep -iE "certificate|error"
+```
+
+`certificate obtained successfully` が出れば完了。出ないときは上から順に見る。
+
+1. Caddy が動いているか（`systemctl is-active caddy`）。`validate` を通しただけでは取得を試みてすらいない
+2. 80 と 443 で待ち受けているか（`sudo ss -tlnp | grep -E ':(80|443)'`）
+3. `dig` が自分のサーバーのIPを返すか。Cloudflare の雲がオレンジのままになっていないか
+4. クラウド側のパケットフィルタ。コントロールパネルで 80/443 を塞いでいると、OS の外側で止まる
+
+アクセスログは journald に出る（`journalctl -u caddy -f`）。ファイルに書かせたいときは
+`log` の `output` を変えることになるが、パッケージは `/var/log/caddy` を作らないので、
+ディレクトリを自分で作って `caddy` に渡すところまでやること。作らずにファイルを指定すると、
+`opening log writer` で設定そのものが読み込めない。
 
 ### nginx
 
@@ -157,14 +199,26 @@ sudo certbot --nginx -d kids.example.com
 
 ### ファイアウォール
 
+`ufw` は入っていないことがある（`sudo ufw allow 80` が `command not found` になったら未インストール）。
+
 ```bash
+sudo apt install -y ufw
 sudo ufw allow OpenSSH
 sudo ufw allow 80
 sudo ufw allow 443
 sudo ufw enable
 ```
 
+`allow OpenSSH` を必ず最初に。これを飛ばして `enable` すると、その場で SSH が切れる。
+
 8787 は開けない。外からは 443 だけで、BFF には Caddy / nginx が localhost 経由で渡す。
+塞ぐまでは 8787 が外から素通しなので、HTTPS が通ったら早めにここまでやること。有効にしたあと、
+HTTPS がまだ通ることと、外から 8787 に繋がらなくなったことの両方を確かめる。
+
+```bash
+curl -i https://kids.example.com/api/health   # 通る
+curl -m 5 http://（サーバーのIP）:8787/api/health   # 繋がらない
+```
 
 ---
 
@@ -213,12 +267,19 @@ sudo systemctl restart kids-group-chat
 
 ## 6. 控えを取る
 
+`backup.sh` は `sqlite3` コマンドを使う。1章で入れそこねていたら先に入れる。
+
 ```bash
+sudo apt install -y sqlite3
 sudo /opt/kids-group-chat/deploy/backup.sh
 ```
 
 `/var/backups/kids-group-chat` に `db-*.sqlite.gz` と `uploads-*.tar.gz` を置く。14世代より
 古いものは消える（`KEEP=30` のように変えられる）。
+
+初回は手で1度まわして、`db-*` と `uploads-*` の**両方**ができることを見ておく。`uploads-*` が
+できないのは、添付が `DATA_DIR` の下に置かれていないということ（2章の `UPLOAD_DIR` を見直す）。
+まだ1枚も送っていないだけ、ということもある。
 
 日に1回まわす。
 
@@ -301,6 +362,10 @@ sudo journalctl -u caddy -n 50    # または sudo tail -f /var/log/nginx/error.
 | 症状 | 見るところ |
 |---|---|
 | 起動してすぐ落ちる | ログに「本番環境では次の環境変数が必須です」が出ていないか。`.env` の埋め忘れ |
+| `ENOENT: mkdir '/opt/.../server/data/uploads'` で落ちる | `.env` の `UPLOAD_DIR` が相対パスのまま残っている（2章） |
+| `systemctl reload caddy` が失敗する | 初回はまだ起動していない。`sudo systemctl enable --now caddy`（3章） |
+| Caddy が `opening log writer` で設定を読めない | `Caddyfile` の `log` がファイル出力になっている。`output stderr` にする |
+| 証明書が取れない | Caddy が起動しているか、`dig` が自分のIPを返すか、パケットフィルタ（3章） |
 | `/api/admin` が503 | `ADMIN_TOKEN` が読めていない。`.env` の所有者が `kidschat` になっているか |
 | AIが黙ったまま | `/api/health` の `aiConfigured`。false ならトークンかモデル名 |
 | AIの返事がまとめて出る | Webサーバーのバッファ設定（3章） |
@@ -315,6 +380,6 @@ sudo journalctl -u caddy -n 50    # または sudo tail -f /var/log/nginx/error.
 
 ## メモ
 
-- 部屋のURLは秘密として扱う。アクセスログにURLを残さない設定にしてある（Caddyfile の `format filter`、nginx の `access_log off`）。変えるなら、ログをいつ消すかも決めること
+- 部屋のURLは秘密として扱う。アクセスログにURLを残さない設定にしてある（Caddyfile の `format filter`、nginx の `access_log off`）。変えるなら、ログをいつ消すかも決めること。Caddy のログは journald に出るので、残る期間は journald の設定に従う（`journalctl --vacuum-time=14d`）
 - `/admin` は `ADMIN_TOKEN` だけで入れる。子どもが使う端末では開いたままにしない（トークンは sessionStorage なので、タブを閉じれば消える）
 - サーバーは1台という前提で作ってある。在室者リストと参加者ごとのレート制限はプロセス内メモリで持っているので、2台に増やすと壊れる
