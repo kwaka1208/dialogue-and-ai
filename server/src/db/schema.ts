@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS participants (
   token_hash   TEXT NOT NULL,
   joined_at    TEXT NOT NULL,
   left_at      TEXT,
+  kicked_at    TEXT,                      -- 管理画面から強制退出させた時刻。入ると再入室できない
   UNIQUE(room_id, display_name)
 );
 

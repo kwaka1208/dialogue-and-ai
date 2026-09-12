@@ -9,6 +9,8 @@ interface StreamState {
   loadError: string | null;
   /** 部屋が管理画面から閉じられた */
   roomClosed: boolean;
+  /** 自分が管理画面から退出させられた */
+  kicked: boolean;
   /** 生成中のAIの応答のid。無ければ null */
   streamingId: string | null;
   /** AIの応答が失敗した理由。次の呼びかけまで出しておく */
@@ -27,6 +29,7 @@ const initialState: StreamState = {
   status: 'connecting',
   loadError: null,
   roomClosed: false,
+  kicked: false,
   streamingId: null,
   aiError: null,
 };
@@ -131,6 +134,10 @@ function reducer(state: StreamState, action: Action): StreamState {
         case 'room_closed':
           return { ...state, roomClosed: true };
 
+        // サーバーはこの直後に接続を切る。つなぎ直しても 403 で戻れない
+        case 'kicked':
+          return { ...state, kicked: true };
+
         default:
           return state;
       }
@@ -145,6 +152,7 @@ const SSE_EVENTS: Array<ServerEvent['type']> = [
   'ai_end',
   'ai_error',
   'room_closed',
+  'kicked',
 ];
 
 /**
@@ -176,6 +184,9 @@ export function useRoomStream(roomId: string): StreamState {
 
   // SSEの購読。EventSource は同一オリジンなら cookie を送ってくれる
   useEffect(() => {
+    // 強制退出のあとは、つなぎ直しても 403 が返るだけなので購読をやめる
+    if (state.kicked) return;
+
     const source = new EventSource(`/api/rooms/${roomId}/stream`);
 
     const handle = (event: MessageEvent<string>): void => {
@@ -195,7 +206,7 @@ export function useRoomStream(roomId: string): StreamState {
       for (const name of SSE_EVENTS) source.removeEventListener(name, handle);
       source.close();
     };
-  }, [roomId]);
+  }, [roomId, state.kicked]);
 
   return state;
 }

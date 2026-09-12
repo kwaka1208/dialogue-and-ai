@@ -10,6 +10,7 @@ interface ParticipantRow {
   token_hash: string;
   joined_at: string;
   left_at: string | null;
+  kicked_at: string | null;
 }
 
 function toParticipant(row: ParticipantRow): Participant {
@@ -19,6 +20,7 @@ function toParticipant(row: ParticipantRow): Participant {
     displayName: row.display_name,
     joinedAt: row.joined_at,
     leftAt: row.left_at,
+    kickedAt: row.kicked_at,
   };
 }
 
@@ -67,6 +69,7 @@ export function joinRoom(roomId: string, displayName: string): JoinResult {
       displayName,
       joinedAt: row.joinedAt,
       leftAt: null,
+      kickedAt: null,
     },
     token,
   };
@@ -101,15 +104,34 @@ export function listParticipants(roomId: string): Participant[] {
 export function countActive(roomId: string): number {
   const row = getDb()
     .prepare<[string], { count: number }>(
-      'SELECT COUNT(*) AS count FROM participants WHERE room_id = ? AND left_at IS NULL',
+      `SELECT COUNT(*) AS count FROM participants
+        WHERE room_id = ? AND left_at IS NULL AND kicked_at IS NULL`,
     )
     .get(roomId);
   return row?.count ?? 0;
 }
 
-/** 画面をつなぎ直したときに退室記録を取り消す。定員の数え方をずれさせないため */
+/**
+ * 管理画面からの強制退出。
+ * 退室記録と合わせて入れるので、そのまま定員からも外れる。
+ * 名前は UNIQUE のまま残すので、同じ名前で入り直すこともできない。
+ */
+export function kickParticipant(id: string): Participant | null {
+  const at = nowIso();
+  getDb()
+    .prepare('UPDATE participants SET kicked_at = ?, left_at = ? WHERE id = ? AND kicked_at IS NULL')
+    .run(at, at, id);
+  return getParticipant(id);
+}
+
+/**
+ * 画面をつなぎ直したときに退室記録を取り消す。定員の数え方をずれさせないため。
+ * 強制退出ずみの参加者は戻さない。
+ */
 export function markRejoined(id: string): void {
-  getDb().prepare('UPDATE participants SET left_at = NULL WHERE id = ?').run(id);
+  getDb()
+    .prepare('UPDATE participants SET left_at = NULL WHERE id = ? AND kicked_at IS NULL')
+    .run(id);
 }
 
 export function markLeft(id: string): void {

@@ -526,3 +526,294 @@ body {
   color: var(--color-muted);
   font-size: 0.8rem;
 }
+
+/* ---- 管理画面 ---- */
+/* 大人がPCで見る画面。子ども向けの画面より文字を詰めて、一覧性を優先する */
+
+.admin-page {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+  font-size: 0.94rem;
+}
+
+.admin-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.admin-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-section {
+  margin-top: 1.75rem;
+}
+
+.admin-section-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.admin-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.admin-card-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.admin-empty {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.admin-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.danger-button {
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius);
+  background: var(--color-error);
+  color: #fff;
+  font-size: 0.94rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.danger-button:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+/* ---- 部屋の一覧 ---- */
+
+.room-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.room-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.room-row.is-selected {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(255, 122, 26, 0.15);
+}
+
+.room-row-main {
+  flex: 1;
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.room-row-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.room-row-meta {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.room-tag {
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--color-ai);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.room-tag.is-closed {
+  background: var(--color-border);
+  color: var(--color-muted);
+}
+
+/* ---- 部屋の詳細 ---- */
+
+.room-detail {
+  margin-top: 1.75rem;
+}
+
+.room-detail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.room-url {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.room-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem 1rem;
+  margin: 1rem 0 0;
+}
+
+.room-stats dt {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.room-stats dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* ---- 参加者の表 ---- */
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.admin-table th {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.state-online {
+  color: var(--color-accent-dark);
+  font-weight: 600;
+}
+
+.state-away {
+  color: var(--color-muted);
+}
+
+/* ---- 会話ログ ---- */
+
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  max-height: 26rem;
+  overflow-y: auto;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.log-item {
+  display: grid;
+  grid-template-columns: 3.5rem 6rem 1fr;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  align-items: baseline;
+}
+
+.log-item.log-ai .log-speaker {
+  color: #1c6ea4;
+  font-weight: 600;
+}
+
+.log-item.log-system {
+  color: var(--color-muted);
+}
+
+.log-time {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-speaker {
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.log-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-attachments {
+  display: block;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 40rem) {
+  .admin-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .log-item {
+    grid-template-columns: 3.5rem 1fr;
+  }
+
+  .log-item .log-body {
+    grid-column: 1 / -1;
+  }
+}

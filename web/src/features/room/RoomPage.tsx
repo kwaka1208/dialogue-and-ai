@@ -40,6 +40,15 @@ export function RoomPage() {
     );
   }
 
+  if (session.status === 'kicked') {
+    return (
+      <main className="centered-page">
+        <h1>{info.room.name}</h1>
+        <p>この へやから でました。おとなの人に きいてね。</p>
+      </main>
+    );
+  }
+
   if (session.status === 'guest') {
     return <JoinForm room={info.room} onJoined={onJoined} />;
   }

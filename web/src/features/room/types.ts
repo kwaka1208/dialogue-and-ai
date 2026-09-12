@@ -30,6 +30,8 @@ export interface Participant {
   displayName: string;
   joinedAt: string;
   leftAt: string | null;
+  /** 管理画面から強制退出させられた時刻 */
+  kickedAt: string | null;
 }
 
 export interface PresenceEntry {
@@ -49,7 +51,13 @@ export interface RoomInfo {
 }
 
 /** 発言を送ったときに、AIの呼びかけがどう扱われたか */
-export type AiStatus = 'started' | 'none' | 'busy' | 'unavailable' | 'turn_limit';
+export type AiStatus =
+  | 'started'
+  | 'none'
+  | 'busy'
+  | 'unavailable'
+  | 'turn_limit'
+  | 'rate_limited';
 
 export type ServerEvent =
   | { type: 'message'; message: Message }
@@ -59,6 +67,7 @@ export type ServerEvent =
   | { type: 'ai_end'; messageId: string; body: string }
   | { type: 'ai_error'; messageId: string; reason: string }
   | { type: 'room_closed' }
+  | { type: 'kicked'; participantId: string }
   | { type: 'ping' };
 
 export type ConnectionStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';

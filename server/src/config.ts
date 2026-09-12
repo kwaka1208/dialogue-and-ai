@@ -78,6 +78,12 @@ export const config = {
     turnLimit: 100,
     replyMode: 'mention' as const,
   },
+
+  // 参加者ごとの連投の上限 (直近1分あたり)。部屋ごとの上限は turn_limit が持つ
+  rateLimits: {
+    aiTurnsPerMinute: 3,
+    messagesPerMinute: 20,
+  },
 } as const;
 
 /** AI Engine を呼べる状態か。未設定なら子ども同士のチャットだけ動かす */

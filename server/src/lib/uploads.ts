@@ -131,3 +131,13 @@ export async function readStoredFile(storedPath: string): Promise<Buffer> {
 export async function removeStoredFile(storedPath: string): Promise<void> {
   await fs.rm(absolutePathOf(storedPath), { force: true });
 }
+
+/**
+ * 部屋ごとの保存ディレクトリを、中身ごと消す。部屋を削除するときに呼ぶ。
+ * storedPath の先頭が部屋IDなので、部屋の添付はここにまとまっている。
+ */
+export async function removeRoomDir(roomId: string): Promise<void> {
+  // roomId は base62 のランダム文字列だが、パスに使う前に念のため確かめる
+  if (!/^[0-9A-Za-z]+$/.test(roomId)) return;
+  await fs.rm(path.join(config.uploadDir, roomId), { recursive: true, force: true });
+}

@@ -15,7 +15,7 @@ interface ChatRoomProps {
 }
 
 export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
-  const { messages, participants, status, loadError, roomClosed, streamingId, aiError } =
+  const { messages, participants, status, loadError, roomClosed, kicked, streamingId, aiError } =
     useRoomStream(room.id);
   const [sendError, setSendError] = useState<string | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
@@ -45,6 +45,16 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
     await api.leave(room.id).catch(() => undefined);
     onLeft();
   };
+
+  // 管理画面から出されたら、その場でタイムラインを閉じる
+  if (kicked) {
+    return (
+      <main className="centered-page">
+        <h1>{room.name}</h1>
+        <p>この へやから でました。おとなの人に きいてね。</p>
+      </main>
+    );
+  }
 
   return (
     <div className="chat-room">

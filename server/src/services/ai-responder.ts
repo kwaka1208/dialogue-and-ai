@@ -13,7 +13,7 @@ import { buildAttachmentPayloads } from './attachment-context.js';
 import type { Message } from '../types.js';
 
 /** 呼びかけを受け付けなかった理由。フロントで子ども向けの文言に直す */
-export type AiSkipReason = 'busy' | 'unavailable' | 'turn_limit';
+export type AiSkipReason = 'busy' | 'unavailable' | 'turn_limit' | 'rate_limited';
 
 /**
  * 応答を開始する。開始できたら true。

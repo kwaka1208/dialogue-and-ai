@@ -88,6 +88,43 @@ export function softDeleteRoom(id: string): boolean {
   return result.changes > 0;
 }
 
+export interface UpdateRoomInput {
+  name?: string;
+  replyMode?: ReplyMode;
+  capacity?: number;
+  turnLimit?: number;
+}
+
+/**
+ * 管理画面からの設定変更。渡された項目だけを書き換える。
+ * turns_used は触らない（上限を上げれば、そのぶん続きから使える）。
+ */
+export function updateRoom(id: string, input: UpdateRoomInput): Room | null {
+  const columns: Record<keyof UpdateRoomInput, string> = {
+    name: 'name',
+    replyMode: 'reply_mode',
+    capacity: 'capacity',
+    turnLimit: 'turn_limit',
+  };
+
+  const assignments: string[] = [];
+  const values: Array<string | number> = [];
+  for (const [key, column] of Object.entries(columns) as Array<[keyof UpdateRoomInput, string]>) {
+    const value = input[key];
+    if (value === undefined) continue;
+    assignments.push(`${column} = ?`);
+    values.push(value);
+  }
+
+  if (assignments.length > 0) {
+    getDb()
+      .prepare(`UPDATE rooms SET ${assignments.join(', ')} WHERE id = ? AND deleted_at IS NULL`)
+      .run(...values, id);
+  }
+
+  return getRoom(id);
+}
+
 export function extendRoom(id: string, hours: number): Room | null {
   getDb().prepare('UPDATE rooms SET expires_at = ? WHERE id = ?').run(isoAfterHours(hours), id);
   return getRoom(id);

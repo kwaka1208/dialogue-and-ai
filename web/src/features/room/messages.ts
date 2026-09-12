@@ -15,6 +15,9 @@ const TEXT: Record<string, string> = {
   too_many_files: 'ファイルは 3こまで つけられます',
   no_file: 'ファイルを えらんでね',
   already_sent: 'もう おくった ファイルは けせません',
+  // レート制限
+  too_fast: 'ちょっと はやすぎるみたい。すこし まってから おくってね',
+  kicked: 'この へやから でました。おとなの人に きいてね',
 };
 
 export function errorText(code: string): string {
@@ -26,6 +29,7 @@ const AI_NOTICE: Record<string, string> = {
   busy: 'いま AIは べつの おへんじを かいているよ。おわってから きいてね',
   unavailable: 'いまは AIが おやすみちゅう。みんなだけで おはなし できるよ',
   turn_limit: 'この へやで AIに きける かいすうが いっぱいに なりました',
+  rate_limited: 'AIに きくのは 1ぷんに 3かいまで。すこし まってから きいてね',
 };
 
 export function aiNoticeText(status: string): string | null {

@@ -162,3 +162,18 @@ export function listStalePending(beforeIso: string): StoredAttachment[] {
 export function deleteAttachment(id: string): void {
   getDb().prepare('DELETE FROM attachments WHERE id = ?').run(id);
 }
+
+/** 部屋ごとの添付。部屋を消すときに、実体を消すために引く */
+export function listForRoom(roomId: string): StoredAttachment[] {
+  return getDb()
+    .prepare<[string], AttachmentRow>(
+      'SELECT * FROM attachments WHERE room_id = ? ORDER BY created_at',
+    )
+    .all(roomId)
+    .map(toStored);
+}
+
+/** 部屋ごとの添付の行を、まとめて消す。実体のファイルは呼び出し側で消す */
+export function deleteForRoom(roomId: string): number {
+  return getDb().prepare('DELETE FROM attachments WHERE room_id = ?').run(roomId).changes;
+}

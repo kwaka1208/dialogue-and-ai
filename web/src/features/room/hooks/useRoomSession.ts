@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../api.ts';
+import { ApiError } from '../../../lib/api.ts';
 import type { Participant } from '../types.ts';
 
 type SessionState =
   | { status: 'checking' }
   | { status: 'guest' }
+  | { status: 'kicked' }
   | { status: 'joined'; me: Participant };
 
 /**
@@ -27,8 +29,11 @@ export function useRoomSession(roomId: string): {
       .then(({ participant }) => {
         if (!cancelled) setSession({ status: 'joined', me: participant });
       })
-      .catch(() => {
-        if (!cancelled) setSession({ status: 'guest' });
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // 強制退出ずみ。入室フォームを出しても同じ名前では戻れない
+        const kicked = error instanceof ApiError && error.code === 'kicked';
+        setSession({ status: kicked ? 'kicked' : 'guest' });
       });
 
     return () => {

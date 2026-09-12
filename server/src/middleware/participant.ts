@@ -30,6 +30,8 @@ export const participantAuth = createMiddleware<ParticipantEnv>(async (c, next) 
 
   const participant = findByToken(roomId, token);
   if (!participant) return c.json({ error: 'not_joined' }, 401);
+  // 強制退出ずみ。cookie が残っていても部屋には戻せない
+  if (participant.kickedAt !== null) return c.json({ error: 'kicked' }, 403);
 
   c.set('room', room);
   c.set('participant', participant);

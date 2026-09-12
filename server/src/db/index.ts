@@ -19,6 +19,7 @@ export function getDb(): Database.Database {
   db.pragma('busy_timeout = 5000');
   migrate(db);
   db.exec(SCHEMA_SQL);
+  addMissingColumns(db);
 
   instance = db;
   return db;
@@ -50,6 +51,26 @@ function migrate(db: Database.Database): void {
   }
 
   db.exec('DROP TABLE attachments');
+}
+
+/**
+ * あとから足した列を、既存のDBにも入れる。
+ * SCHEMA_SQL の CREATE TABLE は既存のテーブルには効かないので、ここで補う。
+ */
+function addMissingColumns(db: Database.Database): void {
+  const additions: Array<{ table: string; column: string; definition: string }> = [
+    // フェーズ6: 参加者の強制退出
+    { table: 'participants', column: 'kicked_at', definition: 'TEXT' },
+  ];
+
+  for (const { table, column, definition } of additions) {
+    const columns = db
+      .prepare<[], { name: string }>(`PRAGMA table_info(${table})`)
+      .all()
+      .map((row) => row.name);
+    if (columns.includes(column)) continue;
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 export function closeDb(): void {

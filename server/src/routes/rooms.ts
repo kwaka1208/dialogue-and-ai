@@ -22,7 +22,8 @@ import {
   toPublic,
 } from '../repos/attachments.js';
 import { startAiResponse, type AiSkipReason } from '../services/ai-responder.js';
-import { abortRun } from '../lib/ai-runs.js';
+import { abortRun, activeRun } from '../lib/ai-runs.js';
+import { consume, retryAfterSeconds } from '../lib/rate-limit.js';
 import { mentionsAi } from '../lib/prompt.js';
 import { addConnection, isConnected, presenceOf, publish } from '../lib/room-hub.js';
 import { EventQueue } from '../lib/event-queue.js';
@@ -148,6 +149,14 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
   const { body, askAi, attachmentIds } = parsed.data;
   if (body === '' && attachmentIds.length === 0) return c.json({ error: 'invalid_body' }, 400);
 
+  // 連投でタイムラインが埋まるのを防ぐ。普通に打つぶんには当たらない上限
+  if (!consume('message', participant.id, config.rateLimits.messagesPerMinute)) {
+    return c.json(
+      { error: 'too_fast', retryAfter: retryAfterSeconds('message', participant.id) },
+      429,
+    );
+  }
+
   const created = insertMessage({
     roomId: room.id,
     kind: 'user',
@@ -161,7 +170,7 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
 
   publish(room.id, { type: 'message', message });
 
-  return c.json({ message, ai: triggerAi(room, body, askAi) });
+  return c.json({ message, ai: triggerAi(room, participant.id, body, askAi) });
 });
 
 /** 送られないまま残った添付を、実体ごと片づける */
@@ -267,13 +276,24 @@ roomsRoute.get('/:id/attachments/:attachmentId', participantAuth, async (c) => {
 /**
  * 呼びかけかどうかを判定し、応答を始める。
  * 発言そのものは保存ずみなので、AIが動かなくても部屋の会話は続く。
+ *
+ * 断る判定は、数を消費しないものから先に並べる。
+ * 「混んでいて断られた」ぶんで参加者の枠や部屋のターンが減らないようにするため。
  */
-function triggerAi(room: Room, body: string, askAi: boolean): 'started' | 'none' | AiSkipReason {
+function triggerAi(
+  room: Room,
+  participantId: string,
+  body: string,
+  askAi: boolean,
+): 'started' | 'none' | AiSkipReason {
   const wanted = askAi || mentionsAi(body) || room.replyMode === 'always';
   if (!wanted) return 'none';
 
   if (!isAiConfigured()) return 'unavailable';
+  if (activeRun(room.id)) return 'busy';
+  if (!consume('ai_turn', participantId, config.rateLimits.aiTurnsPerMinute)) return 'rate_limited';
   if (!consumeTurn(room.id)) return 'turn_limit';
+  // ここまで来ても、ほぼ同時の呼びかけで先を越されることはありうる
   if (!startAiResponse(room.id)) return 'busy';
 
   return 'started';
@@ -317,6 +337,8 @@ roomsRoute.get('/:id/stream', participantAuth, (c) => {
       participantId: participant.id,
       displayName: participant.displayName,
       push: (event) => queue.push(event),
+      // 強制退出でサーバー側から切るとき用。溜まっているぶんは流しきってから終わる
+      close: () => queue.close(),
     });
 
     // プロキシに切られないよう定期的に何か送る

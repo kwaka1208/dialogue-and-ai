@@ -5,6 +5,8 @@ export interface Connection {
   participantId: string;
   displayName: string;
   push: (event: ServerEvent) => void;
+  /** この接続を閉じる。強制退出でサーバー側から切るときに使う */
+  close: () => void;
 }
 
 /**
@@ -53,6 +55,21 @@ export function addConnection(roomId: string, conn: Connection): () => void {
     if (set.size === 0) connections.delete(roomId);
     publish(roomId, { type: 'presence', participants: presenceOf(roomId) });
   };
+}
+
+/**
+ * その参加者の接続を、開いているものすべて切る。強制退出から呼ぶ。
+ * 切った接続は presence からも外れるので、在室者リストからも消える。
+ */
+export function disconnect(roomId: string, participantId: string): void {
+  const set = connections.get(roomId);
+  if (!set) return;
+
+  for (const conn of [...set]) {
+    if (conn.participantId !== participantId) continue;
+    conn.push({ type: 'kicked', participantId });
+    conn.close();
+  }
 }
 
 /** その参加者がいまどこかの画面を開いているか */

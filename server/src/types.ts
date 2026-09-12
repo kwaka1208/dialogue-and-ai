@@ -22,6 +22,8 @@ export interface Participant {
   displayName: string;
   joinedAt: string;
   leftAt: string | null;
+  /** 管理画面から強制退出させた時刻。入っていると部屋に戻れない */
+  kickedAt: string | null;
 }
 
 /** 画面に出す添付の情報。保存先や抽出したテキストは外に出さない */
@@ -58,4 +60,5 @@ export type ServerEvent =
   | { type: 'ai_end'; messageId: string; body: string }
   | { type: 'ai_error'; messageId: string; reason: string }
   | { type: 'room_closed' }
+  | { type: 'kicked'; participantId: string }
   | { type: 'ping' };
