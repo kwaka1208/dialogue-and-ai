@@ -31,9 +31,14 @@ export interface RoomInfo {
   name: string;
   requiresPasscode: boolean;
   replyMode: ReplyMode;
+  /** サーバーに AI Engine の設定があるか。無ければ子ども同士のチャットだけ動く */
+  aiAvailable: boolean;
   closed: boolean;
   expiresAt: string;
 }
+
+/** 発言を送ったときに、AIの呼びかけがどう扱われたか */
+export type AiStatus = 'started' | 'none' | 'busy' | 'unavailable' | 'turn_limit';
 
 export type ServerEvent =
   | { type: 'message'; message: Message }

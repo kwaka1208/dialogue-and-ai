@@ -9,13 +9,17 @@ interface StreamState {
   loadError: string | null;
   /** 部屋が管理画面から閉じられた */
   roomClosed: boolean;
+  /** 生成中のAIの応答のid。無ければ null */
+  streamingId: string | null;
+  /** AIの応答が失敗した理由。次の呼びかけまで出しておく */
+  aiError: string | null;
 }
 
 type Action =
   | { type: 'history'; messages: Message[]; participants: PresenceEntry[] }
   | { type: 'load_error'; reason: string }
   | { type: 'status'; status: ConnectionStatus }
-  | { type: 'server'; event: ServerEvent };
+  | { type: 'server'; event: ServerEvent; roomId: string };
 
 const initialState: StreamState = {
   messages: [],
@@ -23,6 +27,8 @@ const initialState: StreamState = {
   status: 'connecting',
   loadError: null,
   roomClosed: false,
+  streamingId: null,
+  aiError: null,
 };
 
 /** SSEは再送されうるので、同じidのメッセージを二重に積まない */
@@ -31,15 +37,41 @@ function appendMessage(messages: Message[], message: Message): Message[] {
   return [...messages, message];
 }
 
+/** AIの応答の本文を書き換える。無ければ何もしない */
+function patchBody(messages: Message[], id: string, next: (body: string) => string): Message[] {
+  return messages.map((m) => (m.id === id ? { ...m, body: next(m.body) } : m));
+}
+
+/** 生成が始まったときの、本文が空のAIメッセージ */
+function aiPlaceholder(messageId: string, roomId: string): Message {
+  return {
+    id: messageId,
+    roomId,
+    kind: 'ai',
+    participantId: null,
+    displayName: null,
+    body: '',
+    createdAt: new Date().toISOString(),
+  };
+}
+
 function reducer(state: StreamState, action: Action): StreamState {
   switch (action.type) {
-    case 'history':
-      return {
-        ...state,
-        messages: action.messages,
-        participants: action.participants,
-        loadError: null,
-      };
+    case 'history': {
+      // 履歴を取っているあいだにも生成は進む。書きかけの本文を上書きで消さない
+      const streaming = state.streamingId
+        ? state.messages.find((m) => m.id === state.streamingId)
+        : undefined;
+
+      let messages = action.messages;
+      if (streaming) {
+        messages = messages.some((m) => m.id === streaming.id)
+          ? messages.map((m) => (m.id === streaming.id ? streaming : m))
+          : [...messages, streaming];
+      }
+
+      return { ...state, messages, participants: action.participants, loadError: null };
+    }
 
     case 'load_error':
       return { ...state, loadError: action.reason };
@@ -51,11 +83,53 @@ function reducer(state: StreamState, action: Action): StreamState {
       switch (action.event.type) {
         case 'message':
           return { ...state, messages: appendMessage(state.messages, action.event.message) };
+
         case 'presence':
           return { ...state, participants: action.event.participants };
+
+        case 'ai_start':
+          return {
+            ...state,
+            // 途中から入った子には、この直後に それまでの本文が delta でまとめて届く
+            messages: appendMessage(
+              state.messages,
+              aiPlaceholder(action.event.messageId, action.roomId),
+            ),
+            streamingId: action.event.messageId,
+            aiError: null,
+          };
+
+        case 'ai_delta': {
+          const { messageId, delta } = action.event;
+          return {
+            ...state,
+            messages: patchBody(state.messages, messageId, (body) => body + delta),
+          };
+        }
+
+        case 'ai_end': {
+          const { messageId, body } = action.event;
+          return {
+            ...state,
+            messages: patchBody(state.messages, messageId, () => body),
+            streamingId: state.streamingId === messageId ? null : state.streamingId,
+          };
+        }
+
+        case 'ai_error': {
+          const { messageId, reason } = action.event;
+          return {
+            ...state,
+            // 本文が確定しなかったので、書きかけの吹き出しごと消す
+            messages: state.messages.filter((m) => m.id !== messageId),
+            streamingId: state.streamingId === messageId ? null : state.streamingId,
+            aiError: reason === 'stopped' ? null : reason,
+          };
+        }
+
         case 'room_closed':
           return { ...state, roomClosed: true };
-        // ai_* はフェーズ4で扱う
+
         default:
           return state;
       }
@@ -105,7 +179,7 @@ export function useRoomStream(roomId: string): StreamState {
 
     const handle = (event: MessageEvent<string>): void => {
       try {
-        dispatch({ type: 'server', event: JSON.parse(event.data) as ServerEvent });
+        dispatch({ type: 'server', event: JSON.parse(event.data) as ServerEvent, roomId });
       } catch {
         // 壊れたチャンクは捨てる。次のイベントで追いつく
       }

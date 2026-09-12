@@ -1,3 +1,4 @@
+import { activeRun } from './ai-runs.js';
 import type { ServerEvent } from '../types.js';
 
 export interface Connection {
@@ -36,6 +37,13 @@ export function addConnection(roomId: string, conn: Connection): () => void {
   }
   set.add(conn);
   publish(roomId, { type: 'presence', participants: presenceOf(roomId) });
+
+  // 生成の途中で入ってきた子にも、いま流れているものが見えるようにする
+  const run = activeRun(roomId);
+  if (run) {
+    conn.push({ type: 'ai_start', messageId: run.messageId });
+    if (run.body) conn.push({ type: 'ai_delta', messageId: run.messageId, delta: run.body });
+  }
 
   let removed = false;
   return () => {

@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { config } from '../config.js';
-import { getRoom } from '../repos/rooms.js';
+import { config, isAiConfigured } from '../config.js';
+import { consumeTurn, getRoom } from '../repos/rooms.js';
 import {
   DuplicateNameError,
   countActive,
@@ -12,12 +12,15 @@ import {
   markRejoined,
 } from '../repos/participants.js';
 import { insertMessage, listMessages } from '../repos/messages.js';
+import { startAiResponse, type AiSkipReason } from '../services/ai-responder.js';
+import { abortRun } from '../lib/ai-runs.js';
+import { mentionsAi } from '../lib/prompt.js';
 import { addConnection, isConnected, presenceOf, publish } from '../lib/room-hub.js';
 import { EventQueue } from '../lib/event-queue.js';
 import { isPast } from '../lib/time.js';
 import { sha256, safeEqual } from '../lib/ids.js';
 import { participantAuth, participantCookieName, type ParticipantEnv } from '../middleware/participant.js';
-import type { ServerEvent } from '../types.js';
+import type { Room, ServerEvent } from '../types.js';
 
 const HEARTBEAT_MS = 15_000;
 const HISTORY_LIMIT = 200;
@@ -49,6 +52,7 @@ roomsRoute.get('/:id', (c) => {
     name: room.name,
     requiresPasscode: room.passcodeHash !== null,
     replyMode: room.replyMode,
+    aiAvailable: isAiConfigured(),
     closed: isPast(room.expiresAt),
     expiresAt: room.expiresAt,
   });
@@ -128,8 +132,28 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
   });
   publish(room.id, { type: 'message', message });
 
-  // AIへの呼びかけはフェーズ4で配線する。いまは発言だけ流す
-  return c.json({ message });
+  return c.json({ message, ai: triggerAi(room, parsed.data.body, parsed.data.askAi) });
+});
+
+/**
+ * 呼びかけかどうかを判定し、応答を始める。
+ * 発言そのものは保存ずみなので、AIが動かなくても部屋の会話は続く。
+ */
+function triggerAi(room: Room, body: string, askAi: boolean): 'started' | 'none' | AiSkipReason {
+  const wanted = askAi || mentionsAi(body) || room.replyMode === 'always';
+  if (!wanted) return 'none';
+
+  if (!isAiConfigured()) return 'unavailable';
+  if (!consumeTurn(room.id)) return 'turn_limit';
+  if (!startAiResponse(room.id)) return 'busy';
+
+  return 'started';
+}
+
+/** 「とめる」ボタン。生成中のAIの応答を打ち切る */
+roomsRoute.post('/:id/stop', participantAuth, (c) => {
+  const stopped = abortRun(c.get('room').id);
+  return c.json({ stopped });
 });
 
 roomsRoute.post('/:id/leave', participantAuth, (c) => {

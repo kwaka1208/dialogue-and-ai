@@ -64,6 +64,11 @@ export function updateMessageBody(id: string, body: string): void {
   getDb().prepare('UPDATE messages SET body = ? WHERE id = ?').run(body, id);
 }
 
+/** 本文が空のまま終わったAIの応答など、残す意味のない行を消す */
+export function deleteMessage(id: string): void {
+  getDb().prepare('DELETE FROM messages WHERE id = ?').run(id);
+}
+
 export function getMessage(id: string): Message | null {
   const row = getDb()
     .prepare<[string], MessageRow>(`${SELECT_WITH_NAME} WHERE m.id = ?`)

@@ -277,6 +277,72 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* AIが書いている最中。書きかけだと わかるように印をつける */
+.message.is-streaming {
+  border-color: #7fb2f0;
+}
+
+.message.is-streaming .message-body::after {
+  content: '';
+  display: inline-block;
+  width: 0.5rem;
+  height: 1.05rem;
+  margin-left: 0.15rem;
+  vertical-align: text-bottom;
+  background: #2f80ed;
+  animation: caret-blink 1s steps(2, start) infinite;
+}
+
+.message-thinking {
+  color: var(--color-muted);
+}
+
+/* 「かんがえちゅう…」には三点リーダがあるので、カーソルは出さない */
+.message.is-streaming .message-thinking::after {
+  content: none;
+}
+
+@keyframes caret-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* うごきを減らす設定の子には点滅させない */
+@media (prefers-reduced-motion: reduce) {
+  .message.is-streaming .message-body::after {
+    animation: none;
+  }
+}
+
+/* AIに きけなかったときのお知らせ。自分の画面にだけ出る */
+.ai-notice {
+  margin: 0 1rem 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius);
+  background: #fff6e5;
+  border: 1px solid #f3d9a8;
+  font-size: 0.95rem;
+}
+
+.stop-button {
+  align-self: center;
+  min-height: 2.6rem;
+  margin: 0 auto 0.5rem;
+  padding: 0 1.5rem;
+  border: 2px solid #2f80ed;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: #2f80ed;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stop-button:hover {
+  background: #eaf2fd;
+}
+
 /* ---- 入力欄 ---- */
 
 .composer {

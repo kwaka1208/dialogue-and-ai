@@ -2,12 +2,20 @@ import { useState, type FormEvent, type KeyboardEvent } from 'react';
 
 interface ComposerProps {
   onSend: (body: string, askAi: boolean) => Promise<void>;
-  /** AIの配線が済むまでは「AIにきく」を押せなくしておく */
+  /** サーバーにAIの設定があるか */
   aiEnabled: boolean;
+  /** いまAIが誰かに返事を書いている最中か */
+  aiBusy: boolean;
   disabled: boolean;
 }
 
-export function Composer({ onSend, aiEnabled, disabled }: ComposerProps) {
+function aiButtonTitle(aiEnabled: boolean, aiBusy: boolean): string {
+  if (!aiEnabled) return 'いまは AIが おやすみちゅう';
+  if (aiBusy) return 'AIが おへんじを かいているよ';
+  return 'AIに こたえてもらう';
+}
+
+export function Composer({ onSend, aiEnabled, aiBusy, disabled }: ComposerProps) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -57,8 +65,8 @@ export function Composer({ onSend, aiEnabled, disabled }: ComposerProps) {
           className="ai-button"
           type="button"
           onClick={() => void send(true)}
-          disabled={!canSend || !aiEnabled}
-          title={aiEnabled ? 'AIに こたえてもらう' : 'AIは まだ じゅんびちゅう'}
+          disabled={!canSend || !aiEnabled || aiBusy}
+          title={aiButtonTitle(aiEnabled, aiBusy)}
         >
           AIに きく
         </button>

@@ -5,7 +5,7 @@ import { Composer } from './Composer.tsx';
 import { useRoomStream } from '../hooks/useRoomStream.ts';
 import * as api from '../api.ts';
 import { ApiError } from '../../../lib/api.ts';
-import { errorText } from '../messages.ts';
+import { aiErrorText, aiNoticeText, errorText } from '../messages.ts';
 import type { Participant, RoomInfo } from '../types.ts';
 
 interface ChatRoomProps {
@@ -15,16 +15,24 @@ interface ChatRoomProps {
 }
 
 export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
-  const { messages, participants, status, loadError, roomClosed } = useRoomStream(room.id);
+  const { messages, participants, status, loadError, roomClosed, streamingId, aiError } =
+    useRoomStream(room.id);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
 
   const handleSend = async (body: string, askAi: boolean): Promise<void> => {
     setSendError(null);
+    setAiNotice(null);
     try {
-      await api.sendMessage(room.id, { body, askAi });
+      const { ai } = await api.sendMessage(room.id, { body, askAi });
+      setAiNotice(aiNoticeText(ai));
     } catch (error) {
       setSendError(errorText(error instanceof ApiError ? error.code : 'unknown'));
     }
+  };
+
+  const handleStop = async (): Promise<void> => {
+    await api.stopAi(room.id).catch(() => undefined);
   };
 
   const handleLeave = async (): Promise<void> => {
@@ -50,11 +58,24 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
       {loadError && <p className="form-error">かいわを よみこめませんでした</p>}
       {roomClosed && <p className="room-closed">この へやは おわりました</p>}
 
-      <Timeline messages={messages} myParticipantId={me.id} />
+      <Timeline messages={messages} myParticipantId={me.id} streamingId={streamingId} />
 
       {sendError && <p className="form-error">{sendError}</p>}
+      {aiNotice && <p className="ai-notice">{aiNotice}</p>}
+      {aiError && aiErrorText(aiError) && <p className="ai-notice">{aiErrorText(aiError)}</p>}
 
-      <Composer onSend={handleSend} aiEnabled={false} disabled={roomClosed} />
+      {streamingId && (
+        <button className="stop-button" type="button" onClick={() => void handleStop()}>
+          とめる
+        </button>
+      )}
+
+      <Composer
+        onSend={handleSend}
+        aiEnabled={room.aiAvailable}
+        aiBusy={streamingId !== null}
+        disabled={roomClosed}
+      />
     </div>
   );
 }
