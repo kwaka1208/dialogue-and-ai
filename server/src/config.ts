@@ -5,8 +5,10 @@ import path from 'node:path';
 // どこから起動しても同じ .env を読むように、パスを明示する。
 // (npm run -w server は cwd が server/ になるため、リポジトリルートも見る)
 const packageRoot = path.resolve(import.meta.dirname, '..');
+// quiet: true は読み込んだパスを標準出力に出させないため (journald を汚さない)
 loadDotenv({
   path: [path.join(packageRoot, '.env'), path.resolve(packageRoot, '..', '.env')],
+  quiet: true,
 });
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -21,7 +23,6 @@ const schema = z.object({
   SAKURA_AI_MODEL: z.string().optional(),
 
   ADMIN_TOKEN: z.string().optional(),
-  SESSION_SECRET: z.string().optional(),
 
   DATA_DIR: z.string().default('./data'),
   UPLOAD_DIR: z.string().optional(),
@@ -41,9 +42,7 @@ const env = parsed.data;
 
 // 本番では秘密の値を省略させない
 if (isProduction) {
-  const missing = (['ADMIN_TOKEN', 'SESSION_SECRET', 'SAKURA_AI_TOKEN'] as const).filter(
-    (key) => !env[key],
-  );
+  const missing = (['ADMIN_TOKEN', 'SAKURA_AI_TOKEN'] as const).filter((key) => !env[key]);
   if (missing.length > 0) {
     console.error(`本番環境では次の環境変数が必須です: ${missing.join(', ')}`);
     process.exit(1);
@@ -66,7 +65,6 @@ export const config = {
   },
 
   adminToken: env.ADMIN_TOKEN,
-  sessionSecret: env.SESSION_SECRET,
 
   dataDir,
   dbPath: path.join(dataDir, 'kids-group-chat.sqlite'),

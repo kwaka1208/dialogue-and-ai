@@ -1,0 +1,179 @@
+# 開発環境
+
+手元で動かして直すための手順。本番に置く手順は [`deploy.md`](./deploy.md)。
+
+---
+
+## 1. 前提
+
+- Node 22 以上（`package.json` の `engines` で縛っている）
+- git
+
+DBは SQLite なので、別に立てるものは無い。AI Engine のトークンも無くても始められる（AIだけが
+黙って、子ども同士のチャットは動く）。
+
+---
+
+## 2. 初回セットアップ
+
+```bash
+git clone https://github.com/kwaka1208/dojo-agent.git
+cd dojo-agent
+npm install
+cp .env.example .env
+```
+
+`better-sqlite3` はネイティブモジュールなので、npm がインストールスクリプトをブロックした場合は
+承認してから作り直す。
+
+```bash
+npm install-scripts approve better-sqlite3 esbuild fsevents
+npm rebuild better-sqlite3
+```
+
+`.env` はリポジトリのルート（`.env.example` と同じ場所）に置く。`npm run -w server` のスクリプトは
+cwd が `server/` になるが、`config.ts` がルートの `.env` も見るようにしてある。
+
+### .env に何を入れるか
+
+| | 開発で必要か | 入れるもの |
+|---|---|---|
+| `SAKURA_AI_TOKEN` | 任意 | さくらのクラウドのコントロールパネルで AI Engine のトークンを発行する。未設定ならAIが黙ったままチャットだけ動く |
+| `SAKURA_AI_MODEL` | そのまま | `.env.example` の既定値（`preview/Qwen3-VL-30B-A3B-Instruct`）でよい |
+| `ADMIN_TOKEN` | `/admin` を触るなら必要 | 開発なら適当な文字列でよい。未設定だと `/api/admin` が 503 を返す |
+| `DATA_DIR` / `UPLOAD_DIR` | そのまま | 既定で `server/data` の下にDBと添付ファイルができる。`.gitignore` 済み |
+| `NG_WORDS_FILE` | 任意 | 未設定なら `server/src/lib/word-filter.ts` の既定のリストを使う |
+
+`ADMIN_TOKEN` を本番用に作るときは `openssl rand -base64 32`。
+
+参加者の cookie に秘密鍵は要らない。入室のときにランダムなトークンを作って渡し、DBにはその
+SHA-256 だけを持つ方式なので、署名用の鍵を置く場所が無い。
+
+---
+
+## 3. 開発サーバー
+
+```bash
+npm run dev          # BFF (:8787) と Vite (:5173) を同時に起動
+npm run dev:server   # BFFだけ
+npm run dev:web      # Viteだけ
+```
+
+触るのは Vite 側の `http://localhost:5173`。`/api` へのリクエストは Vite が BFF に転送するので、
+CORS は出てこない。BFFは `tsx watch` なので、保存すれば勝手に再起動する。
+
+---
+
+## 4. 通しで動かしてみる
+
+**1. 部屋を作る**
+
+`http://localhost:5173/admin` を開き、`.env` に入れた `ADMIN_TOKEN` で入って作る。
+コマンドからも作れる。
+
+```bash
+npm run room:new -w server -- --name "テストのへや" --passcode 1234
+# → http://localhost:5173/r/xxxxxxxxxxxxxxxxxxxxxx が表示される
+```
+
+| オプション | 既定 |
+|---|---|
+| `--name` | `テストのへや` |
+| `--passcode` | なし（合言葉なしで入れる） |
+| `--capacity` | 20 |
+| `--hours` | 4 |
+| `--always` | 付けると `replyMode: always`（毎回AIが返す） |
+
+APIを直接叩いてもよい。
+
+```bash
+curl -X POST http://localhost:8787/api/admin/rooms \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"テストのへや","passcode":"1234","capacity":5}'
+```
+
+**2. 2人で入る**
+
+参加者の cookie は部屋ごと（`path=/api/rooms/:id`）に1つしか持てない。同じブラウザの同じ
+プロファイルで同じ部屋に2人目として入ると、**cookie が上書きされて1人目の画面が使えなくなる**
+（サーバー側の参加者は2人とも残るが、ブラウザは1人目のトークンを持っていない）。2人分の画面を
+同時に開くには、シークレットウィンドウか別のブラウザを使う。
+
+**3. 動きを確かめる**
+
+- 片方の発言がもう片方にすぐ出るか（SSEが通っている）
+- 在室者の人数が2人になるか
+- 「AIにきく」で返事が少しずつ出るか（`SAKURA_AI_TOKEN` を入れている場合）
+- 📎 から画像を1枚付けて送ると、タイムラインに出てAIがその中身に触れるか
+
+**4. 作り直す**
+
+DBと添付を消してやり直したいとき。
+
+```bash
+rm -rf server/data
+```
+
+次の起動でスキーマから作り直す。マイグレーションは `server/src/db/index.ts` が起動時に流す。
+
+---
+
+## 5. AI Engine の疎通確認
+
+`.env` に `SAKURA_AI_TOKEN` を設定してから実行する。フェーズ1でモデルを選ぶのに使ったもので、
+モデルを変えるときや「AIが黙っている」ときの切り分けに使える。
+
+```bash
+npm run check:ai -w server            # まとめて確認
+npm run check:ai -w server -- models  # モデル一覧
+npm run check:ai -w server -- stream  # ストリーミング
+npm run check:ai -w server -- names   # 「なまえ: 本文」形式の理解
+npm run check:ai -w server -- image   # 画像入力の可否
+```
+
+`image` はステータスコードではなく応答本文で判定している。`gpt-oss-120b` は `image_url` を
+送っても HTTP 200 を返すが、本文は「画像が確認できません」になるため。
+
+モデルごとの比較結果は [README の「使うモデル」](../README.md#使うモデル) にある。
+
+### AI Engine を叩かずに往復を試す
+
+無料枠を使いたくないとき、OpenAI互換のSSEを返すモックを立てて `SAKURA_AI_BASE_URL` をそこへ
+向ける。ストリーミングの見え方や「とめる」の挙動はこれで確かめられる。
+
+---
+
+## 6. 型チェックとビルド
+
+```bash
+npm run typecheck    # server と web の tsc --noEmit
+npm run build        # web/dist と server/dist を作る
+```
+
+本番と同じ形（BFFが静的ファイルも配る）をローカルで見るとき。
+
+```bash
+npm run build
+npm start            # node server/dist/index.js → http://localhost:8787
+```
+
+`NODE_ENV=production` を付けると cookie に `Secure` が付く。最近のブラウザは
+`http://localhost` を安全な文脈として扱うので手元では入れるが、LANの別端末から
+`http://192.168.x.x:8787` で開くと cookie が保存されず入室できない。実機で試すなら、
+`NODE_ENV` は付けずに起動する。
+
+自動テストはまだ無い。いまの網は `typecheck` と手で触ることだけ。
+
+---
+
+## 7. よくあるつまずき
+
+| 症状 | 見るところ |
+|---|---|
+| `npm install` で `better-sqlite3` が失敗する | 2章のインストールスクリプトの承認。それでも駄目なら Node のバージョン |
+| AIが黙ったまま | `curl -s localhost:8787/api/health` の `aiConfigured`。false ならトークンかモデル名 |
+| `/admin` に入れない | `.env` の `ADMIN_TOKEN`。BFFを再起動したか（`.env` は起動時にしか読まない） |
+| 1人目の画面が急に「入り直して」になる | 同じブラウザで同じ部屋に2人目として入り、cookie が上書きされた（4章） |
+| 発言が相手に出ない | ブラウザの Network で `/stream` がつながったままか。BFFの再起動で切れたなら再読み込み |
+| AIの返事が途中で止まる | サーバーのログに `[ai]` の行が出ていないか。タイムアウトは60秒 |
+| 強制退出した名前で入り直せない | 仕様。`participants` の行は残すので、同じ名前では戻れない |

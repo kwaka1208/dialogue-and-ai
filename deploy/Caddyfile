@@ -1,0 +1,38 @@
+# /etc/caddy/Caddyfile
+#
+# kids.example.com は自分のドメインに置き換える。
+# 証明書の取得と更新は Caddy が勝手にやるので、証明書の設定は書かない。
+
+kids.example.com {
+	# ディレクティブの順序を自分で決めたいので route で囲む。
+	# 囲まないと Caddy が既定の順序に並べ替えて、SSE が encode を通ってしまう
+	route {
+		# 添付は1ファイル10MBまで。余裕を持たせて12MBで切る。
+		# route の中は書いた順に評価されるので、いちばん上に置く
+		request_body {
+			max_size 12MB
+		}
+
+		# SSE は圧縮もバッファもさせない。flush_interval -1 でチャンクをそのまま流す
+		reverse_proxy /api/rooms/*/stream localhost:8787 {
+			flush_interval -1
+		}
+
+		encode zstd gzip
+		reverse_proxy localhost:8787
+	}
+
+	log {
+		output file /var/log/caddy/kids-group-chat.log {
+			roll_size 10MB
+			roll_keep 5
+		}
+		# 部屋のURLがログに残り続けるのは避けたいので、URLは記録しない
+		format filter {
+			wrap console
+			fields {
+				request>uri delete
+			}
+		}
+	}
+}

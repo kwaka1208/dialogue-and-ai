@@ -81,3 +81,13 @@ export function isConnected(roomId: string, participantId: string): boolean {
   }
   return false;
 }
+
+/**
+ * つないでいる画面をすべて閉じる。サーバーの停止処理から呼ぶ。
+ * 閉じないと開いているSSEが残り、HTTPサーバーが終わらない。
+ */
+export function closeAllConnections(): void {
+  for (const set of [...connections.values()]) {
+    for (const conn of [...set]) conn.close();
+  }
+}

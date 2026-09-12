@@ -1,0 +1,55 @@
+# /etc/systemd/system/kids-group-chat.service
+#
+# 置き場所とユーザーは docs/deploy.md の手順に合わせている。
+#   アプリ: /opt/kids-group-chat   (デプロイで入れ替わる。サービスからは読むだけ)
+#   データ: /var/lib/kids-group-chat (DBと添付ファイル。StateDirectory が用意する)
+
+[Unit]
+Description=kids-group-chat BFF
+Documentation=https://github.com/kwaka1208/dojo-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kidschat
+Group=kidschat
+WorkingDirectory=/opt/kids-group-chat
+ExecStart=/usr/bin/node server/dist/index.js
+
+# .env にも書くが、書き忘れると cookie の secure が付かず秘密の必須チェックも走らない。
+# dotenv は既にある環境変数を上書きしないので、ここで固定しても .env と食い違わない
+Environment=NODE_ENV=production
+# 1コア1GBのサーバーなので、ヒープが膨らんでスワップに落ちる前に GC させる
+Environment=NODE_OPTIONS=--max-old-space-size=320
+
+# /var/lib/kids-group-chat を作り、所有者を kidschat にする。.env の DATA_DIR もここを指す
+StateDirectory=kids-group-chat
+StateDirectoryMode=0750
+
+Restart=always
+RestartSec=2
+# SIGTERM で生成中の本文を保存し、SSEを閉じてから終わる。打ち切りまで最大5秒みている
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kids-group-chat
+
+# 触れる範囲を絞る。書けるのは StateDirectory だけ
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=600M
+
+[Install]
+WantedBy=multi-user.target

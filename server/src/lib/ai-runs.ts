@@ -42,3 +42,13 @@ export function abortRun(roomId: string): boolean {
   run.controller.abort();
   return true;
 }
+
+/** 走っているものを全部止める。サーバーの停止処理から呼ぶ */
+export function abortAllRuns(): void {
+  for (const roomId of [...runs.keys()]) abortRun(roomId);
+}
+
+/** まだ片づいていない生成が残っているか。停止処理が書き込みの終わりを待つのに使う */
+export function hasActiveRuns(): boolean {
+  return runs.size > 0;
+}

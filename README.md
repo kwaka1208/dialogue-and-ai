@@ -10,34 +10,32 @@
 ```
 .
 ├── server/   BFF (Node 22 + TypeScript + Hono + SQLite)
-└── web/      フロント (Vite + React + TypeScript)
+├── web/      フロント (Vite + React + TypeScript)
+├── deploy/   systemd のユニット、Caddy / nginx の設定例、控えを取るスクリプト
+└── docs/     開発と運用の手順
 ```
 
 サーバーは1台。本番ではフロントの静的ファイルも BFF が配る。
 
-## セットアップ
+| ドキュメント | 中身 |
+|---|---|
+| [`docs/development.md`](./docs/development.md) | 手元で動かして直すまで |
+| [`docs/deploy.md`](./docs/deploy.md) | サーバーに置いて運用するまで |
+| [`kids-group-chat-handoff.md`](./kids-group-chat-handoff.md) | 設計の背景と仕様 |
+
+## 動かす
 
 ```bash
 npm install
 cp .env.example .env   # 値を埋める
+npm run dev            # BFF (:8787) と Vite (:5173) を同時に起動
+npm run typecheck      # server と web の tsc --noEmit
 ```
 
-`.env` はリポジトリのルート（`.env.example` と同じ場所）に置く。`server` 配下のスクリプトは
-cwd が `server/` になるが、`config.ts` がルートの `.env` も見るようにしてある。
+`http://localhost:5173` を開く。`.env` の埋め方、部屋を作って2人で通しで動かす手順、疎通確認の
+スクリプト、つまずいたときに見る場所は [`docs/development.md`](./docs/development.md)。
 
-`better-sqlite3` はネイティブモジュールなので、npm がインストールスクリプトをブロックした場合は
-`npm install-scripts approve better-sqlite3 esbuild fsevents` のあと `npm rebuild better-sqlite3` を実行する。
-
-## 開発
-
-```bash
-npm run dev          # BFF (:8787) と Vite (:5173) を同時に起動
-npm run dev:server
-npm run dev:web
-npm run typecheck
-```
-
-Vite の dev サーバーは `/api` へのリクエストを BFF に転送する。
+AI Engine のトークンは無くても始められる。AIだけが黙って、子ども同士のチャットは動く。
 
 ## 部屋を作る
 
@@ -46,16 +44,8 @@ Vite の dev サーバーは `/api` へのリクエストを BFF に転送する
 
 トークンは sessionStorage に置くので、タブを閉じれば消える。子どもが使う端末では開いたままにしない。
 
-コマンドからも作れる。
-
-```bash
-npm run room:new -w server -- --name "テストのへや" --passcode 1234
-# → http://localhost:5173/r/xxxxxxxxxxxxxxxxxxxxxx が表示される
-
-curl -X POST http://localhost:8787/api/admin/rooms \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"name":"テストのへや","passcode":"1234","capacity":5}'
-```
+コマンドからも作れる（`npm run room:new -w server`）。オプションは
+[`docs/development.md`](./docs/development.md#4-通しで動かしてみる) にある。
 
 ## 使うモデル
 
@@ -80,18 +70,6 @@ Qwen3-VL は履歴の「なまえ: 本文」という形を真似て、自分の
 付けてくる。画面には発言者名が別に出るので、`stripSpeakerPrefix` で落としている。落とすのは
 履歴にある発言者名と `AI` だけなので、`ヒント: ` のような本文は残る。
 
-## AI Engine の疎通確認
-
-`.env` に `SAKURA_AI_TOKEN` を設定してから実行する。
-
-```bash
-npm run check:ai -w server            # まとめて確認
-npm run check:ai -w server -- models  # モデル一覧
-npm run check:ai -w server -- stream  # ストリーミング
-npm run check:ai -w server -- names   # 「なまえ: 本文」形式の理解
-npm run check:ai -w server -- image   # 画像入力の可否
-```
-
 ## AIが返事をするとき
 
 次のどれかで、AIが1回だけ返事をする。
@@ -103,9 +81,6 @@ npm run check:ai -w server -- image   # 画像入力の可否
 同時に走る生成は部屋に1本まで。ほかの子が呼びかけた場合は断る。生成中は「とめる」ボタンが出て、
 押すとそこまでの本文を残して終わる。`SAKURA_AI_TOKEN` が未設定なら、AIは黙ったまま子ども同士の
 チャットだけが動く。
-
-AI Engine を実際に叩かずに往復を試したいときは、OpenAI互換のSSEを返すモックを立てて
-`SAKURA_AI_BASE_URL` をそこへ向ける。
 
 ## 添付ファイル
 
@@ -198,6 +173,27 @@ Content-Type ではなく拡張子で行い、配信するときも allowlist �
 | 「でる」 | 押し間違い防止に2回押させる。5秒さわらなければ元に戻る |
 | 読み上げ | エラーは `role="alert"`、お知らせと「かんがえちゅう」は `role="status"` |
 
+## 本番に置く
+
+手順は [`docs/deploy.md`](./docs/deploy.md) にまとめてある。1コア/1GB の Ubuntu 1台に、
+アプリを `/opt/kids-group-chat`、データを `/var/lib/kids-group-chat` に置く形。
+
+```bash
+npm ci && npm run build   # web/dist と server/dist を作る
+npm start                 # node server/dist/index.js
+```
+
+`NODE_ENV=production` にすると、cookie に `Secure` が付き、`ADMIN_TOKEN` と `SAKURA_AI_TOKEN`
+の欠けを起動時に弾く。フロントの静的ファイルは同じポートから BFF が配るので、
+Webサーバー側に置くものは無い。
+
+HTTPS を終端するときに押さえるのは2つだけ。SSEをバッファさせないこと（溜めて送られると、AIの
+返事がまとめて一気に出る）と、アップロードのサイズ上限を上げること（nginx の既定 1MB だと添付が
+413 になる）。`deploy/Caddyfile` と `deploy/nginx.conf` はどちらもそれを入れてある。
+
+`systemctl restart` で送られる SIGTERM を受けたら、生成中のAIの返事を中断してそこまでの本文を
+保存し、開いているSSEを閉じてからDBを閉じて終わる。
+
 ## 実装の進み具合
 
 - [x] フェーズ0 土台（リポジトリ構成、DBスキーマ、疎通スクリプト）
@@ -208,3 +204,10 @@ Content-Type ではなく拡張子で行い、配信するときも allowlist �
 - [x] フェーズ5 添付ファイル（PDFのテキスト抽出は入れていない）
 - [x] フェーズ6 管理画面とレート制限（部屋を消したときの添付の削除も入れた）
 - [x] フェーズ7 子ども向けの文言とデザイン調整（NGワードの印も入れた。実際に子どもに触ってもらってからの調整はこれから）
+- [x] フェーズ8 デプロイと運用の手順（実機のサーバーへの配置はこれから。手順書とローカルでの本番相当の確認まで）
+
+まだ手を付けていないもの。
+
+- PDFのテキスト抽出（フェーズ5で見送り。いまはファイル名だけAIに渡す）
+- 回をまたぐ記憶（ハンドオフ 3.4。入れるなら保護者への説明とセットで）
+- 自動テスト（いまは `npm run typecheck` だけ）
