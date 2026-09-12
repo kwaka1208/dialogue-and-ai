@@ -45,15 +45,23 @@ export interface Message {
   displayName: string | null;
   body: string;
   attachments: Attachment[];
+  /** NGワードの疑いがあると判定された発言。管理画面にだけ出す */
+  flagged: boolean;
   createdAt: string;
 }
+
+/**
+ * 子どもの画面に流す形。どの発言に印が付いたかは見せない。
+ * 見えると印を付けさせる遊びが始まるので、`flagged` はここで落とす。
+ */
+export type RoomMessage = Omit<Message, 'flagged'>;
 
 /**
  * SSE で配信するイベント。
  * web/src/features/room/types.ts と同じ形を保つこと。
  */
 export type ServerEvent =
-  | { type: 'message'; message: Message }
+  | { type: 'message'; message: RoomMessage }
   | { type: 'presence'; participants: Array<{ id: string; displayName: string }> }
   | { type: 'ai_start'; messageId: string }
   | { type: 'ai_delta'; messageId: string; delta: string }

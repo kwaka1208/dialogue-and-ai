@@ -3,7 +3,7 @@ import type {
   AdminRoom,
   AdminSession,
   CreateRoomInput,
-  Message,
+  AdminMessage,
   RoomDetail,
   RoomSummary,
   UpdateRoomInput,
@@ -44,7 +44,7 @@ export function roomDetail(token: string, roomId: string): Promise<RoomDetail> {
 export function roomMessages(
   token: string,
   roomId: string,
-): Promise<{ messages: Message[]; limit: number }> {
+): Promise<{ messages: AdminMessage[]; limit: number }> {
   return adminFetch(token, `/rooms/${roomId}/messages`);
 }
 

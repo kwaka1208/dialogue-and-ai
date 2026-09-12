@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS messages (
   kind           TEXT NOT NULL,            -- 'user' | 'ai' | 'system'
   participant_id TEXT REFERENCES participants(id),  -- kind='user' のとき
   body           TEXT NOT NULL,
+  flagged        INTEGER NOT NULL DEFAULT 0,  -- NGワードの疑い。管理画面にだけ出す印
   created_at     TEXT NOT NULL
 );
 

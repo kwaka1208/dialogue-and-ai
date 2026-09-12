@@ -11,7 +11,7 @@ import {
   markLeft,
   markRejoined,
 } from '../repos/participants.js';
-import { getMessage, insertMessage, listMessages } from '../repos/messages.js';
+import { forRoom, getMessage, insertMessage, listMessages } from '../repos/messages.js';
 import {
   attachToMessage,
   deleteAttachment,
@@ -25,6 +25,7 @@ import { startAiResponse, type AiSkipReason } from '../services/ai-responder.js'
 import { abortRun, activeRun } from '../lib/ai-runs.js';
 import { consume, retryAfterSeconds } from '../lib/rate-limit.js';
 import { mentionsAi } from '../lib/prompt.js';
+import { containsNgWord } from '../lib/word-filter.js';
 import { addConnection, isConnected, presenceOf, publish } from '../lib/room-hub.js';
 import { EventQueue } from '../lib/event-queue.js';
 import {
@@ -121,7 +122,7 @@ roomsRoute.post('/:id/join', async (c) => {
     kind: 'system',
     body: `${result.participant.displayName} さんが はいりました`,
   });
-  publish(roomId, { type: 'message', message: systemMessage });
+  publish(roomId, { type: 'message', message: forRoom(systemMessage) });
 
   return c.json({ participant: result.participant });
 });
@@ -134,7 +135,7 @@ roomsRoute.get('/:id/me', participantAuth, (c) =>
 roomsRoute.get('/:id/messages', participantAuth, (c) => {
   const room = c.get('room');
   return c.json({
-    messages: listMessages(room.id, HISTORY_LIMIT),
+    messages: listMessages(room.id, HISTORY_LIMIT).map(forRoom),
     participants: presenceOf(room.id),
   });
 });
@@ -157,20 +158,27 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
     );
   }
 
+  // 引っかかっても発言はそのまま部屋に出す。AIが動かないことと、ログの印だけが変わる
+  const flagged = containsNgWord(body);
+
   const created = insertMessage({
     roomId: room.id,
     kind: 'user',
     participantId: participant.id,
     body,
+    flagged,
   });
 
   // 自分がアップロードした未送信のものだけが付く。取り違えは黙って落ちる
   attachToMessage(attachmentIds, created.id, participant.id);
   const message = getMessage(created.id)!;
 
-  publish(room.id, { type: 'message', message });
+  publish(room.id, { type: 'message', message: forRoom(message) });
 
-  return c.json({ message, ai: triggerAi(room, participant.id, body, askAi) });
+  return c.json({
+    message: forRoom(message),
+    ai: triggerAi(room, participant.id, body, askAi, flagged),
+  });
 });
 
 /** 送られないまま残った添付を、実体ごと片づける */
@@ -285,10 +293,12 @@ function triggerAi(
   participantId: string,
   body: string,
   askAi: boolean,
+  flagged: boolean,
 ): 'started' | 'none' | AiSkipReason {
   const wanted = askAi || mentionsAi(body) || room.replyMode === 'always';
   if (!wanted) return 'none';
 
+  if (flagged) return 'filtered';
   if (!isAiConfigured()) return 'unavailable';
   if (activeRun(room.id)) return 'busy';
   if (!consume('ai_turn', participantId, config.rateLimits.aiTurnsPerMinute)) return 'rate_limited';
@@ -315,7 +325,7 @@ roomsRoute.post('/:id/leave', participantAuth, (c) => {
     kind: 'system',
     body: `${participant.displayName} さんが でていきました`,
   });
-  publish(room.id, { type: 'message', message: systemMessage });
+  publish(room.id, { type: 'message', message: forRoom(systemMessage) });
   deleteCookie(c, participantCookieName(room.id), { path: `/api/rooms/${room.id}` });
 
   return c.json({ ok: true });

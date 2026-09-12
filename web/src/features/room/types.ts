@@ -57,7 +57,9 @@ export type AiStatus =
   | 'busy'
   | 'unavailable'
   | 'turn_limit'
-  | 'rate_limited';
+  | 'rate_limited'
+  /** NGワードの候補に当たった発言。部屋には出るが、AIは返事をしない */
+  | 'filtered';
 
 export type ServerEvent =
   | { type: 'message'; message: Message }

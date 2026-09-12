@@ -4,7 +4,13 @@
  * 応答は「空のメッセージを1件つくる → 差分を流す → 本文を確定させる」の順で進む。
  * 途中で入室した子にも同じものが見えるよう、進行中の本文は ai-runs が持つ。
  */
-import { insertMessage, listMessages, updateMessageBody, deleteMessage } from '../repos/messages.js';
+import {
+  forRoom,
+  insertMessage,
+  listMessages,
+  updateMessageBody,
+  deleteMessage,
+} from '../repos/messages.js';
 import { AiEngineError, streamChatCompletion } from '../lib/ai-client.js';
 import { AI_HISTORY_LIMIT, buildChatMessages, stripSpeakerPrefix } from '../lib/prompt.js';
 import { startRun, endRun, type AiRun } from '../lib/ai-runs.js';
@@ -13,7 +19,7 @@ import { buildAttachmentPayloads } from './attachment-context.js';
 import type { Message } from '../types.js';
 
 /** 呼びかけを受け付けなかった理由。フロントで子ども向けの文言に直す */
-export type AiSkipReason = 'busy' | 'unavailable' | 'turn_limit' | 'rate_limited';
+export type AiSkipReason = 'busy' | 'unavailable' | 'turn_limit' | 'rate_limited' | 'filtered';
 
 /**
  * 応答を開始する。開始できたら true。
@@ -131,5 +137,5 @@ function fail(roomId: string, run: AiRun, error: unknown): void {
       ? 'AIの おへんじが おそいので やめました。もういちど きいてみてね'
       : 'いま AIと おはなし できないみたい。すこし してから もういちど きいてね',
   });
-  publish(roomId, { type: 'message', message: notice });
+  publish(roomId, { type: 'message', message: forRoom(notice) });
 }

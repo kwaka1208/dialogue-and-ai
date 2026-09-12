@@ -66,4 +66,9 @@ export interface UpdateRoomInput {
   turnLimit?: number;
 }
 
+/** 管理画面のログにだけ出る印。子どもの画面に流れる形には入っていない */
+export interface AdminMessage extends Message {
+  flagged: boolean;
+}
+
 export type { Message };

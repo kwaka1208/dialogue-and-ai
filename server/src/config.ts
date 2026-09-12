@@ -25,6 +25,9 @@ const schema = z.object({
 
   DATA_DIR: z.string().default('./data'),
   UPLOAD_DIR: z.string().optional(),
+
+  // NGワードのリスト。1行1語、# から先はコメント。未設定なら組み込みの既定リストを使う
+  NG_WORDS_FILE: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -70,6 +73,7 @@ export const config = {
   uploadDir: env.UPLOAD_DIR
     ? path.resolve(packageRoot, env.UPLOAD_DIR)
     : path.join(dataDir, 'uploads'),
+  ngWordsFile: env.NG_WORDS_FILE ? path.resolve(packageRoot, env.NG_WORDS_FILE) : null,
 
   // 部屋の既定値 (管理画面から部屋ごとに変更できる)
   roomDefaults: {

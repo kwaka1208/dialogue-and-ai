@@ -2,7 +2,7 @@ import { getDb } from '../db/index.js';
 import { randomId } from '../lib/ids.js';
 import { nowIso } from '../lib/time.js';
 import { listForMessages, toPublic } from './attachments.js';
-import type { Attachment, Message, MessageKind } from '../types.js';
+import type { Attachment, Message, MessageKind, RoomMessage } from '../types.js';
 
 interface MessageRow {
   id: string;
@@ -11,6 +11,7 @@ interface MessageRow {
   participant_id: string | null;
   display_name: string | null;
   body: string;
+  flagged: number;
   created_at: string;
 }
 
@@ -23,6 +24,7 @@ function toMessage(row: MessageRow, attachments: Attachment[] = []): Message {
     displayName: row.display_name,
     body: row.body,
     attachments,
+    flagged: row.flagged === 1,
     createdAt: row.created_at,
   };
 }
@@ -44,6 +46,8 @@ export interface InsertMessageInput {
   kind: MessageKind;
   participantId?: string | null;
   body: string;
+  /** NGワードの疑い。付けるのは子どもの発言だけ */
+  flagged?: boolean;
   /** AIの応答のように、空で先に作って後から本文を埋めたい場合に使う */
   id?: string;
 }
@@ -55,17 +59,24 @@ export function insertMessage(input: InsertMessageInput): Message {
     kind: input.kind,
     participantId: input.participantId ?? null,
     body: input.body,
+    flagged: input.flagged ? 1 : 0,
     createdAt: nowIso(),
   };
 
   getDb()
     .prepare(
-      `INSERT INTO messages (id, room_id, kind, participant_id, body, created_at)
-       VALUES (@id, @roomId, @kind, @participantId, @body, @createdAt)`,
+      `INSERT INTO messages (id, room_id, kind, participant_id, body, flagged, created_at)
+       VALUES (@id, @roomId, @kind, @participantId, @body, @flagged, @createdAt)`,
     )
     .run(row);
 
   return getMessage(row.id)!;
+}
+
+/** 子どもの画面に流す形へ。印は落とす */
+export function forRoom(message: Message): RoomMessage {
+  const { flagged: _flagged, ...rest } = message;
+  return rest;
 }
 
 export function updateMessageBody(id: string, body: string): void {

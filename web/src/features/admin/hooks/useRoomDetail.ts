@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../api.ts';
-import type { Message, RoomDetail } from '../types.ts';
+import type { AdminMessage, RoomDetail } from '../types.ts';
 
 /**
  * 選択中の部屋の詳細とログ。
@@ -13,12 +13,12 @@ export function useRoomDetail(
   roomId: string,
 ): {
   detail: RoomDetail | null;
-  messages: Message[];
+  messages: AdminMessage[];
   error: string | null;
   reload: () => Promise<void>;
 } {
   const [detail, setDetail] = useState<RoomDetail | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<AdminMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async (): Promise<void> => {

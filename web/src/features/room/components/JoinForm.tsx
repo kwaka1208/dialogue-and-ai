@@ -68,7 +68,11 @@ export function JoinForm({ room, onJoined }: JoinFormProps) {
           </label>
         )}
 
-        {error && <p className="form-error">{error}</p>}
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
 
         <button className="primary-button" type="submit" disabled={submitting || !displayName}>
           {submitting ? 'はいっています…' : 'はいる'}
@@ -76,7 +80,10 @@ export function JoinForm({ room, onJoined }: JoinFormProps) {
       </form>
 
       <p className="notice">
-        ここでの かいわは、おとなが みられるように きろくされます。
+        <strong>やくそく</strong>
+        <br />
+        ここで はなしたことは、おとなが あとから ぜんぶ よめます。
+        <br />
         じゅうしょ・がっこうの なまえ・でんわばんごうは かかないでね。
       </p>
     </main>

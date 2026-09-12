@@ -61,6 +61,8 @@ function addMissingColumns(db: Database.Database): void {
   const additions: Array<{ table: string; column: string; definition: string }> = [
     // フェーズ6: 参加者の強制退出
     { table: 'participants', column: 'kicked_at', definition: 'TEXT' },
+    // フェーズ7: NGワードの印
+    { table: 'messages', column: 'flagged', definition: 'INTEGER NOT NULL DEFAULT 0' },
   ];
 
   for (const { table, column, definition } of additions) {

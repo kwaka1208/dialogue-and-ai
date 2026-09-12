@@ -48,6 +48,7 @@ body {
   padding: 0 1.5rem;
   border: none;
   border-radius: var(--radius);
+  font-family: inherit;
   font-size: 1.05rem;
   font-weight: 700;
   color: #fff;
@@ -75,13 +76,20 @@ body {
 }
 
 .text-button {
-  min-height: 2.5rem;
-  padding: 0 0.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
+  font-family: inherit;
   font-size: 0.95rem;
   cursor: pointer;
+}
+
+.text-button.is-asking {
+  border-color: var(--color-error);
+  color: var(--color-error);
+  font-weight: 700;
 }
 
 .form-error {
@@ -168,6 +176,10 @@ body {
   font-size: 1.15rem;
 }
 
+.chat-header-main {
+  min-width: 0;
+}
+
 .chat-header-right {
   display: flex;
   align-items: center;
@@ -180,20 +192,42 @@ body {
   color: var(--color-muted);
 }
 
+.participants {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.participant-count {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+/* 人数が増えてもヘッダーを縦に伸ばさない。あふれたぶんは横に流す */
 .participant-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: 0.4rem;
-  margin: 0.35rem 0 0;
-  padding: 0;
+  margin: 0;
+  padding: 0 0 0.15rem;
   list-style: none;
+  scrollbar-width: thin;
 }
 
 .participant {
+  flex-shrink: 0;
   padding: 0.1rem 0.6rem;
   border-radius: 999px;
   background: #f1eae0;
   font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.participant.is-me {
+  background: var(--color-mine);
 }
 
 .participant-me {
@@ -209,10 +243,37 @@ body {
   text-align: center;
 }
 
+/* スクロールする箱と、その上に浮かせるボタンの土台 */
+.timeline-area {
+  display: flex;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
 .timeline {
   flex: 1;
   overflow-y: auto;
   padding: 1rem;
+}
+
+/* 上に戻って読んでいるあいだだけ出る。押すと下まで戻る */
+.jump-button {
+  position: absolute;
+  left: 50%;
+  bottom: 0.75rem;
+  transform: translateX(-50%);
+  min-height: 2.6rem;
+  padding: 0 1.1rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+  cursor: pointer;
 }
 
 .message-list {
@@ -261,9 +322,23 @@ body {
   margin-bottom: 0.15rem;
 }
 
+/* 色だけに頼らず、だれの発言かを形でも見せる */
+.message-mark {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
 .message-speaker {
   font-weight: 700;
   font-size: 0.95rem;
+}
+
+.message-self {
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 8%);
+  font-size: 0.75rem;
+  color: var(--color-muted);
 }
 
 .message-time {
@@ -294,7 +369,42 @@ body {
 }
 
 .message-thinking {
+  display: flex;
+  align-items: center;
   color: var(--color-muted);
+}
+
+.thinking-dots {
+  display: inline-flex;
+  gap: 0.2rem;
+  margin-left: 0.4rem;
+}
+
+.thinking-dots i {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: #2f80ed;
+  animation: thinking 1.2s ease-in-out infinite;
+}
+
+.thinking-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes thinking {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
 }
 
 /* 「かんがえちゅう…」には三点リーダがあるので、カーソルは出さない */
@@ -310,8 +420,13 @@ body {
 
 /* うごきを減らす設定の子には点滅させない */
 @media (prefers-reduced-motion: reduce) {
-  .message.is-streaming .message-body::after {
+  .message.is-streaming .message-body::after,
+  .thinking-dots i {
     animation: none;
+  }
+
+  .thinking-dots i {
+    opacity: 0.6;
   }
 }
 
@@ -327,13 +442,14 @@ body {
 
 .stop-button {
   align-self: center;
-  min-height: 2.6rem;
+  min-height: 2.75rem;
   margin: 0 auto 0.5rem;
   padding: 0 1.5rem;
   border: 2px solid #2f80ed;
   border-radius: var(--radius);
   background: var(--color-surface);
   color: #2f80ed;
+  font-family: inherit;
   font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
@@ -354,15 +470,9 @@ body {
   background: var(--color-surface);
 }
 
-/* 入力欄とボタンの段。添付のプレビューはこの上に積む */
-.composer-row {
-  display: flex;
-  gap: 0.6rem;
-  align-items: flex-end;
-}
-
+/* 入力欄は全幅、ボタンはその下に1段。狭い画面でも指が当たる大きさを保つ */
 .composer-input {
-  flex: 1;
+  width: 100%;
   padding: 0.6rem 0.8rem;
   border: 2px solid var(--color-border);
   border-radius: var(--radius);
@@ -379,22 +489,40 @@ body {
 
 .composer-buttons {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .composer-buttons .primary-button,
 .composer-buttons .ai-button,
 .composer-buttons .attach-button {
-  min-height: 2.6rem;
-  padding: 0 1rem;
-  font-size: 0.95rem;
+  flex: 1;
+  min-height: 3rem;
+  padding: 0 0.6rem;
+  font-size: 1rem;
   white-space: nowrap;
 }
 
-@media (max-width: 30rem) {
+/* 「AIに きく」がこの画面の主役の導線なので、いちばん広く取る */
+.composer-buttons .ai-button {
+  flex: 1.4;
+}
+
+/* いちばん小さい画面 (320px幅) でも、3つのボタンが1行に収まるように詰める */
+@media (max-width: 22.5rem) {
+  .composer {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
+
   .composer-buttons {
-    flex-direction: row;
+    gap: 0.35rem;
+  }
+
+  .composer-buttons .primary-button,
+  .composer-buttons .ai-button,
+  .composer-buttons .attach-button {
+    padding: 0 0.4rem;
+    font-size: 0.95rem;
   }
 }
 
@@ -780,6 +908,22 @@ body {
 
 .log-item.log-system {
   color: var(--color-muted);
+}
+
+.log-item.is-flagged {
+  background: #fff3f1;
+}
+
+/* NGワードの候補に当たった発言。大人が後から拾えるようにするだけの印 */
+.log-flag {
+  display: inline-block;
+  margin-right: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  background: var(--color-error);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 .log-time {

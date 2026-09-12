@@ -122,6 +122,7 @@ export function Composer({ roomId, onSend, aiEnabled, aiBusy, disabled }: Compos
                 type="button"
                 onClick={() => void handleRemove(attachment.id)}
                 title="この ファイルを やめる"
+                aria-label={`${attachment.originalName} を やめる`}
               >
                 ×
               </button>
@@ -130,55 +131,58 @@ export function Composer({ roomId, onSend, aiEnabled, aiBusy, disabled }: Compos
         </ul>
       )}
 
-      {uploadError && <p className="form-error">{uploadError}</p>}
+      {uploadError && (
+        <p className="form-error" role="alert">
+          {uploadError}
+        </p>
+      )}
 
-      <div className="composer-row">
-        <textarea
-          className="composer-input"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={handleKeyDown}
-          maxLength={2000}
-          rows={2}
-          placeholder={disabled ? 'この へやは おわりました' : 'メッセージを かこう'}
-          disabled={disabled}
+      <textarea
+        className="composer-input"
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        onKeyDown={handleKeyDown}
+        maxLength={2000}
+        rows={2}
+        placeholder={disabled ? 'この へやは おわりました' : 'メッセージを かこう'}
+        aria-label="メッセージ"
+        disabled={disabled}
+      />
+
+      <div className="composer-buttons">
+        <input
+          ref={fileInputRef}
+          className="file-input"
+          type="file"
+          accept={ACCEPT_ATTRIBUTE}
+          multiple
+          onChange={(e) => void handleFiles(e)}
         />
-
-        <div className="composer-buttons">
-          <input
-            ref={fileInputRef}
-            className="file-input"
-            type="file"
-            accept={ACCEPT_ATTRIBUTE}
-            multiple
-            onChange={(e) => void handleFiles(e)}
-          />
-          <button
-            className="attach-button"
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || uploading || pending.length >= MAX_FILES_PER_MESSAGE}
-            title={
-              pending.length >= MAX_FILES_PER_MESSAGE
-                ? `ファイルは ${MAX_FILES_PER_MESSAGE}こまで`
-                : 'ファイルを つける'
-            }
-          >
-            {uploading ? 'おくってます…' : '📎 ファイル'}
-          </button>
-          <button className="primary-button" type="submit" disabled={!canSend}>
-            いう
-          </button>
-          <button
-            className="ai-button"
-            type="button"
-            onClick={() => void send(true)}
-            disabled={!canSend || !aiEnabled || aiBusy}
-            title={aiButtonTitle(aiEnabled, aiBusy)}
-          >
-            AIに きく
-          </button>
-        </div>
+        <button
+          className="attach-button"
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled || uploading || pending.length >= MAX_FILES_PER_MESSAGE}
+          title={
+            pending.length >= MAX_FILES_PER_MESSAGE
+              ? `ファイルは ${MAX_FILES_PER_MESSAGE}こまで`
+              : 'ファイルを つける'
+          }
+        >
+          {uploading ? 'おくってます…' : '📎 ファイル'}
+        </button>
+        <button className="primary-button" type="submit" disabled={!canSend}>
+          いう
+        </button>
+        <button
+          className="ai-button"
+          type="button"
+          onClick={() => void send(true)}
+          disabled={!canSend || !aiEnabled || aiBusy}
+          title={aiButtonTitle(aiEnabled, aiBusy)}
+        >
+          🤖 AIに きく
+        </button>
       </div>
     </form>
   );

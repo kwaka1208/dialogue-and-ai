@@ -13,6 +13,12 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 }
 
+/** 色だけで見分けられない子のために、だれの発言かを形でも出す */
+function speakerMark(kind: Message['kind'], isMine: boolean): string {
+  if (kind === 'ai') return '🤖';
+  return isMine ? '🙂' : '🧒';
+}
+
 export function MessageItem({ message, roomId, isMine, isStreaming }: MessageItemProps) {
   if (message.kind === 'system') {
     return <li className="message message-system">{message.body}</li>;
@@ -25,9 +31,19 @@ export function MessageItem({ message, roomId, isMine, isStreaming }: MessageIte
     return (
       <li className="message message-ai is-streaming">
         <div className="message-head">
+          <span className="message-mark" aria-hidden="true">
+            🤖
+          </span>
           <span className="message-speaker">{speaker}</span>
         </div>
-        <p className="message-body message-thinking">かんがえちゅう…</p>
+        <p className="message-body message-thinking" role="status">
+          かんがえちゅう
+          <span className="thinking-dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        </p>
       </li>
     );
   }
@@ -37,7 +53,11 @@ export function MessageItem({ message, roomId, isMine, isStreaming }: MessageIte
       className={`message message-${message.kind} ${isMine ? 'is-mine' : ''} ${isStreaming ? 'is-streaming' : ''}`}
     >
       <div className="message-head">
+        <span className="message-mark" aria-hidden="true">
+          {speakerMark(message.kind, isMine)}
+        </span>
         <span className="message-speaker">{speaker}</span>
+        {isMine && <span className="message-self">じぶん</span>}
         <time className="message-time" dateTime={message.createdAt}>
           {formatTime(message.createdAt)}
         </time>

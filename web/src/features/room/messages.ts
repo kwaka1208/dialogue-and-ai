@@ -30,6 +30,7 @@ const AI_NOTICE: Record<string, string> = {
   unavailable: 'いまは AIが おやすみちゅう。みんなだけで おはなし できるよ',
   turn_limit: 'この へやで AIに きける かいすうが いっぱいに なりました',
   rate_limited: 'AIに きくのは 1ぷんに 3かいまで。すこし まってから きいてね',
+  filtered: 'いまの いいかたには、AIは おへんじ しないよ。ことばを かえて きいてみてね',
 };
 
 export function aiNoticeText(status: string): string | null {
