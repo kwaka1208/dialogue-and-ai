@@ -11,18 +11,37 @@ import {
   markLeft,
   markRejoined,
 } from '../repos/participants.js';
-import { insertMessage, listMessages } from '../repos/messages.js';
+import { getMessage, insertMessage, listMessages } from '../repos/messages.js';
+import {
+  attachToMessage,
+  deleteAttachment,
+  getAttachment,
+  insertAttachment,
+  listPending,
+  listStalePending,
+  toPublic,
+} from '../repos/attachments.js';
 import { startAiResponse, type AiSkipReason } from '../services/ai-responder.js';
 import { abortRun } from '../lib/ai-runs.js';
 import { mentionsAi } from '../lib/prompt.js';
 import { addConnection, isConnected, presenceOf, publish } from '../lib/room-hub.js';
 import { EventQueue } from '../lib/event-queue.js';
-import { isPast } from '../lib/time.js';
+import {
+  MAX_FILE_BYTES,
+  MAX_FILES_PER_MESSAGE,
+  UploadRejected,
+  readStoredFile,
+  removeStoredFile,
+  storeFile,
+} from '../lib/uploads.js';
+import { isPast, isoAfterHours } from '../lib/time.js';
 import { sha256, safeEqual } from '../lib/ids.js';
 import { participantAuth, participantCookieName, type ParticipantEnv } from '../middleware/participant.js';
 import type { Room, ServerEvent } from '../types.js';
 
 const HEARTBEAT_MS = 15_000;
+/** multipart の境界やヘッダーのぶん。Content-Length は本体より少し大きくなる */
+const FORM_OVERHEAD_BYTES = 64 * 1024;
 const HISTORY_LIMIT = 200;
 
 /** 名前に改行やタブが混ざるとタイムラインが崩れるので落とす */
@@ -36,8 +55,10 @@ const joinSchema = z.object({
 });
 
 const postMessageSchema = z.object({
-  body: z.string().trim().min(1).max(2000),
+  // 添付だけを送ることもできるので、本文は空でもよい
+  body: z.string().trim().max(2000),
   askAi: z.boolean().default(false),
+  attachmentIds: z.array(z.string()).max(MAX_FILES_PER_MESSAGE).default([]),
 });
 
 export const roomsRoute = new Hono();
@@ -124,15 +145,123 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
   const parsed = postMessageSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: 'invalid_body' }, 400);
 
-  const message = insertMessage({
+  const { body, askAi, attachmentIds } = parsed.data;
+  if (body === '' && attachmentIds.length === 0) return c.json({ error: 'invalid_body' }, 400);
+
+  const created = insertMessage({
     roomId: room.id,
     kind: 'user',
     participantId: participant.id,
-    body: parsed.data.body,
+    body,
   });
+
+  // 自分がアップロードした未送信のものだけが付く。取り違えは黙って落ちる
+  attachToMessage(attachmentIds, created.id, participant.id);
+  const message = getMessage(created.id)!;
+
   publish(room.id, { type: 'message', message });
 
-  return c.json({ message, ai: triggerAi(room, parsed.data.body, parsed.data.askAi) });
+  return c.json({ message, ai: triggerAi(room, body, askAi) });
+});
+
+/** 送られないまま残った添付を、実体ごと片づける */
+async function sweepStalePending(): Promise<void> {
+  for (const stale of listStalePending(isoAfterHours(-6))) {
+    deleteAttachment(stale.id);
+    await removeStoredFile(stale.storedPath).catch(() => undefined);
+  }
+}
+
+/**
+ * ファイルのアップロード。発言より先に送っておき、送信時に `attachmentIds` で紐づける。
+ * 発言に紐づくまでは、上げた本人にしか見えない。
+ */
+roomsRoute.post('/:id/attachments', participantAuth, async (c) => {
+  const room = c.get('room');
+  const participant = c.get('participant');
+
+  await sweepStalePending();
+
+  if (listPending(participant.id).length >= MAX_FILES_PER_MESSAGE) {
+    return c.json({ error: 'too_many_files' }, 409);
+  }
+
+  // parseBody はいったん全部メモリに載せるので、大きすぎるものは読む前に断る
+  const declared = Number(c.req.header('content-length') ?? 0);
+  if (declared > MAX_FILE_BYTES + FORM_OVERHEAD_BYTES) {
+    return c.json({ error: 'file_too_large' }, 413);
+  }
+
+  const form = await c.req.parseBody().catch(() => null);
+  const file = form?.['file'];
+  if (!(file instanceof File)) return c.json({ error: 'no_file' }, 400);
+
+  let stored;
+  try {
+    stored = await storeFile(room.id, file);
+  } catch (error) {
+    if (error instanceof UploadRejected) return c.json({ error: error.reason }, 400);
+    throw error;
+  }
+
+  const attachment = insertAttachment({
+    roomId: room.id,
+    participantId: participant.id,
+    originalName: stored.originalName,
+    mimeType: stored.mimeType,
+    size: stored.size,
+    storedPath: stored.storedPath,
+    extractedText: stored.extractedText,
+  });
+
+  return c.json({ attachment: toPublic(attachment) }, 201);
+});
+
+/** 送る前に添付を取り消す。送ったあとのものは消せない */
+roomsRoute.delete('/:id/attachments/:attachmentId', participantAuth, async (c) => {
+  const participant = c.get('participant');
+  const attachment = getAttachment(c.req.param('attachmentId'));
+
+  if (!attachment || attachment.participantId !== participant.id) {
+    return c.json({ error: 'not_found' }, 404);
+  }
+  if (attachment.messageId !== null) return c.json({ error: 'already_sent' }, 409);
+
+  deleteAttachment(attachment.id);
+  await removeStoredFile(attachment.storedPath).catch(() => undefined);
+
+  return c.json({ ok: true });
+});
+
+/** 添付の中身を返す。部屋に入っている子だけが見られる */
+roomsRoute.get('/:id/attachments/:attachmentId', participantAuth, async (c) => {
+  const room = c.get('room');
+  const participant = c.get('participant');
+  const attachment = getAttachment(c.req.param('attachmentId'));
+
+  if (!attachment || attachment.roomId !== room.id) return c.json({ error: 'not_found' }, 404);
+  // まだ送られていないものは、上げた本人にしか見せない
+  if (attachment.messageId === null && attachment.participantId !== participant.id) {
+    return c.json({ error: 'not_found' }, 404);
+  }
+
+  let data: Buffer;
+  try {
+    data = await readStoredFile(attachment.storedPath);
+  } catch {
+    return c.json({ error: 'not_found' }, 404);
+  }
+
+  // MIME は allowlist で決めたものだけ。画像以外はブラウザで開かせず保存させる
+  c.header('Content-Type', attachment.mimeType);
+  c.header('Content-Length', String(data.byteLength));
+  c.header('Cache-Control', 'private, max-age=3600');
+  c.header(
+    'Content-Disposition',
+    `${attachment.kind === 'image' ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`,
+  );
+
+  return c.body(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
 });
 
 /**

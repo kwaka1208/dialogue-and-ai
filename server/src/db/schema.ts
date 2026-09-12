@@ -42,13 +42,17 @@ CREATE INDEX IF NOT EXISTS idx_messages_room_created ON messages(room_id, create
 
 CREATE TABLE IF NOT EXISTS attachments (
   id             TEXT PRIMARY KEY,
-  message_id     TEXT NOT NULL REFERENCES messages(id),
+  room_id        TEXT NOT NULL REFERENCES rooms(id),
+  participant_id TEXT NOT NULL REFERENCES participants(id),
+  message_id     TEXT REFERENCES messages(id),      -- 送信前は NULL (先にアップロードするため)
   original_name  TEXT NOT NULL,
   mime_type      TEXT NOT NULL,
   size           INTEGER NOT NULL,
-  stored_path    TEXT NOT NULL,
-  extracted_text TEXT                      -- テキスト/PDFから抽出した内容
+  stored_path    TEXT NOT NULL,                     -- uploadDir からの相対パス
+  extracted_text TEXT,                              -- テキスト系から抽出した内容
+  created_at     TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_owner ON attachments(participant_id, message_id);
 `;

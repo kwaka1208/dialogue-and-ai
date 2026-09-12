@@ -1,7 +1,8 @@
 import { getDb } from '../db/index.js';
 import { randomId } from '../lib/ids.js';
 import { nowIso } from '../lib/time.js';
-import type { Message, MessageKind } from '../types.js';
+import { listForMessages, toPublic } from './attachments.js';
+import type { Attachment, Message, MessageKind } from '../types.js';
 
 interface MessageRow {
   id: string;
@@ -13,7 +14,7 @@ interface MessageRow {
   created_at: string;
 }
 
-function toMessage(row: MessageRow): Message {
+function toMessage(row: MessageRow, attachments: Attachment[] = []): Message {
   return {
     id: row.id,
     roomId: row.room_id,
@@ -21,8 +22,15 @@ function toMessage(row: MessageRow): Message {
     participantId: row.participant_id,
     displayName: row.display_name,
     body: row.body,
+    attachments,
     createdAt: row.created_at,
   };
+}
+
+/** 添付を1回のクエリでまとめて引いて、発言ごとに配る */
+function withAttachments(rows: MessageRow[]): Message[] {
+  const byMessage = listForMessages(rows.map((row) => row.id));
+  return rows.map((row) => toMessage(row, (byMessage.get(row.id) ?? []).map(toPublic)));
 }
 
 const SELECT_WITH_NAME = `
@@ -73,7 +81,7 @@ export function getMessage(id: string): Message | null {
   const row = getDb()
     .prepare<[string], MessageRow>(`${SELECT_WITH_NAME} WHERE m.id = ?`)
     .get(id);
-  return row ? toMessage(row) : null;
+  return row ? withAttachments([row])[0]! : null;
 }
 
 /** 古い順に返す。limit は「直近N件」の意味なので、末尾から取って並べ直す */
@@ -83,7 +91,7 @@ export function listMessages(roomId: string, limit = 200): Message[] {
       `${SELECT_WITH_NAME} WHERE m.room_id = ? ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?`,
     )
     .all(roomId, limit);
-  return rows.map(toMessage).reverse();
+  return withAttachments(rows).reverse();
 }
 
 export function countMessages(roomId: string): number {

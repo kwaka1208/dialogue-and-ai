@@ -4,9 +4,17 @@
  */
 import { config } from '../config.js';
 
+/**
+ * 画像を渡すときは content を配列にする (OpenAI 互換の multimodal 形式)。
+ * 添付のない発言は今までどおり文字列のまま送る。
+ */
+export type ChatContent =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | ChatContent[];
 }
 
 export class AiEngineError extends Error {

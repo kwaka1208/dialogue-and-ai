@@ -3,12 +3,13 @@ import { MessageItem } from './MessageItem.tsx';
 import type { Message } from '../types.ts';
 
 interface TimelineProps {
+  roomId: string;
   messages: Message[];
   myParticipantId: string;
   streamingId: string | null;
 }
 
-export function Timeline({ messages, myParticipantId, streamingId }: TimelineProps) {
+export function Timeline({ roomId, messages, myParticipantId, streamingId }: TimelineProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastBodyLength = messages[messages.length - 1]?.body.length ?? 0;
 
@@ -25,6 +26,7 @@ export function Timeline({ messages, myParticipantId, streamingId }: TimelinePro
           <MessageItem
             key={message.id}
             message={message}
+            roomId={roomId}
             isMine={message.participantId === myParticipantId}
             isStreaming={message.id === streamingId}
           />

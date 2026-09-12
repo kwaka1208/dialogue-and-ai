@@ -1,5 +1,7 @@
 export type ReplyMode = 'mention' | 'always';
 export type MessageKind = 'user' | 'ai' | 'system';
+/** 添付の扱いの分かれ目。画面の見せ方とAIへの渡し方がこれで決まる */
+export type AttachmentKind = 'image' | 'text' | 'pdf' | 'other';
 
 export interface Room {
   id: string;
@@ -22,6 +24,16 @@ export interface Participant {
   leftAt: string | null;
 }
 
+/** 画面に出す添付の情報。保存先や抽出したテキストは外に出さない */
+export interface Attachment {
+  id: string;
+  messageId: string | null;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  kind: AttachmentKind;
+}
+
 export interface Message {
   id: string;
   roomId: string;
@@ -30,6 +42,7 @@ export interface Message {
   /** kind='user' のときの発言者名。表示用に join して埋める */
   displayName: string | null;
   body: string;
+  attachments: Attachment[];
   createdAt: string;
 }
 

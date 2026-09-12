@@ -9,6 +9,7 @@ import { AiEngineError, streamChatCompletion } from '../lib/ai-client.js';
 import { AI_HISTORY_LIMIT, buildChatMessages, stripSpeakerPrefix } from '../lib/prompt.js';
 import { startRun, endRun, type AiRun } from '../lib/ai-runs.js';
 import { publish } from '../lib/room-hub.js';
+import { buildAttachmentPayloads } from './attachment-context.js';
 import type { Message } from '../types.js';
 
 /** 呼びかけを受け付けなかった理由。フロントで子ども向けの文言に直す */
@@ -61,7 +62,11 @@ async function generate(
   };
 
   try {
-    for await (const delta of streamChatCompletion(buildChatMessages(history), run.controller.signal)) {
+    // 添付の読み込み (画像の base64 化) はここで一度だけ
+    const attachments = await buildAttachmentPayloads(history);
+    const request = buildChatMessages(history, attachments);
+
+    for await (const delta of streamChatCompletion(request, run.controller.signal)) {
       if (!leadFlushed) {
         lead += delta;
         // 改行が来たら1行目は出揃っている。判定を待つ理由はもうない

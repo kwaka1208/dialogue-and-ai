@@ -20,14 +20,20 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
   const [sendError, setSendError] = useState<string | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
 
-  const handleSend = async (body: string, askAi: boolean): Promise<void> => {
+  const handleSend = async (
+    body: string,
+    askAi: boolean,
+    attachmentIds: string[],
+  ): Promise<boolean> => {
     setSendError(null);
     setAiNotice(null);
     try {
-      const { ai } = await api.sendMessage(room.id, { body, askAi });
+      const { ai } = await api.sendMessage(room.id, { body, askAi, attachmentIds });
       setAiNotice(aiNoticeText(ai));
+      return true;
     } catch (error) {
       setSendError(errorText(error instanceof ApiError ? error.code : 'unknown'));
+      return false;
     }
   };
 
@@ -58,7 +64,12 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
       {loadError && <p className="form-error">かいわを よみこめませんでした</p>}
       {roomClosed && <p className="room-closed">この へやは おわりました</p>}
 
-      <Timeline messages={messages} myParticipantId={me.id} streamingId={streamingId} />
+      <Timeline
+        roomId={room.id}
+        messages={messages}
+        myParticipantId={me.id}
+        streamingId={streamingId}
+      />
 
       {sendError && <p className="form-error">{sendError}</p>}
       {aiNotice && <p className="ai-notice">{aiNotice}</p>}
@@ -71,6 +82,7 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
       )}
 
       <Composer
+        roomId={room.id}
         onSend={handleSend}
         aiEnabled={room.aiAvailable}
         aiBusy={streamingId !== null}

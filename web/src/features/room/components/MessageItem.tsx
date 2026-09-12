@@ -1,7 +1,9 @@
+import { AttachmentList } from './AttachmentList.tsx';
 import type { Message } from '../types.ts';
 
 interface MessageItemProps {
   message: Message;
+  roomId: string;
   isMine: boolean;
   /** AIがいま書いている最中のメッセージ */
   isStreaming: boolean;
@@ -11,7 +13,7 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function MessageItem({ message, isMine, isStreaming }: MessageItemProps) {
+export function MessageItem({ message, roomId, isMine, isStreaming }: MessageItemProps) {
   if (message.kind === 'system') {
     return <li className="message message-system">{message.body}</li>;
   }
@@ -40,7 +42,8 @@ export function MessageItem({ message, isMine, isStreaming }: MessageItemProps) 
           {formatTime(message.createdAt)}
         </time>
       </div>
-      <p className="message-body">{message.body}</p>
+      {message.body !== '' && <p className="message-body">{message.body}</p>}
+      <AttachmentList roomId={roomId} attachments={message.attachments} />
     </li>
   );
 }

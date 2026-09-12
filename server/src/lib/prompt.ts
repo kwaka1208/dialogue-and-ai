@@ -3,7 +3,8 @@
  * ハンドオフ 3章（部屋でのAIの振る舞い）と 7.4（system prompt の骨子）に対応する。
  */
 import type { Message } from '../types.js';
-import type { ChatMessage } from './ai-client.js';
+import type { AttachmentPayload, AttachmentPayloads } from '../services/attachment-context.js';
+import type { ChatContent, ChatMessage } from './ai-client.js';
 
 export const KIDS_SYSTEM_PROMPT = `あなたは子どもたちの集まるチャットの部屋にいる、AIの仲間です。
 - あなたは画面に「AI」と出ます。自分で別の名前を名乗りません
@@ -14,7 +15,9 @@ export const KIDS_SYSTEM_PROMPT = `あなたは子どもたちの集まるチャ
 - あなたの返事の先頭に「なまえ:」は付けません。名前は画面に出るので、本文だけを書きます
 - 答えをすぐ全部言わず、まず一緒に考えるヒントを出します
 - 個人情報（住所・学校名・電話番号）を聞かれても答えず、聞き出そうともしません
-- こわい話、暴力的な話、大人向けの話題にはのりません`;
+- こわい話、暴力的な話、大人向けの話題にはのりません
+- ファイルや写真がついてくることがあります。中身が読めるものは「なかみ」として一緒に届きます
+- 中身が届かないファイルは、名前だけを見て「どんなファイル？」と聞きかえします`;
 
 /** 直近このぶんだけ送る。これを超えたぶんは捨てる（要約はフェーズ4の範囲外） */
 export const AI_HISTORY_LIMIT = 60;
@@ -45,26 +48,55 @@ export function stripSpeakerPrefix(text: string, history: Message[]): string {
 }
 
 /**
+ * 添付を本文に織り込む。中身が読めたものは「なかみ」として添え、
+ * 読めないものはファイル名だけ伝える。
+ */
+function describeAttachments(payloads: AttachmentPayload[]): string {
+  return payloads
+    .map((payload) =>
+      payload.text === null
+        ? `\n[ファイル: ${payload.originalName}]`
+        : `\n[ファイル: ${payload.originalName} の なかみ]\n${payload.text}`,
+    )
+    .join('');
+}
+
+/**
  * 部屋の履歴を OpenAI 互換の messages に変換する。
  * 発言者名は本文の先頭に埋める。`name` フィールドはモデルによって扱いが違うため。
  */
-export function buildChatMessages(history: Message[]): ChatMessage[] {
+export function buildChatMessages(
+  history: Message[],
+  attachments: AttachmentPayloads = new Map(),
+): ChatMessage[] {
   const messages: ChatMessage[] = [{ role: 'system', content: KIDS_SYSTEM_PROMPT }];
 
   for (const message of history) {
     // 入退室のお知らせはトークンの無駄なので送らない
     if (message.kind === 'system') continue;
-    // 生成中で本文がまだ空のものは飛ばす
-    if (message.body.trim() === '') continue;
+
+    const payloads = attachments.get(message.id) ?? [];
+    // 生成中で本文がまだ空のものは飛ばす。ただし添付だけの発言は送る
+    if (message.body.trim() === '' && payloads.length === 0) continue;
 
     if (message.kind === 'ai') {
       messages.push({ role: 'assistant', content: message.body });
-    } else {
-      messages.push({
-        role: 'user',
-        content: `${message.displayName ?? 'だれか'}: ${message.body}`,
-      });
+      continue;
     }
+
+    const text = `${message.displayName ?? 'だれか'}: ${message.body}${describeAttachments(payloads)}`;
+    const image = payloads.find((payload) => payload.imageDataUrl !== null)?.imageDataUrl;
+
+    if (!image) {
+      messages.push({ role: 'user', content: text });
+      continue;
+    }
+
+    const content: ChatContent[] = [
+      { type: 'text', text },
+      { type: 'image_url', image_url: { url: image } },
+    ];
+    messages.push({ role: 'user', content });
   }
 
   return messages;

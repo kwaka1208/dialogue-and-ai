@@ -51,6 +51,7 @@ function aiPlaceholder(messageId: string, roomId: string): Message {
     participantId: null,
     displayName: null,
     body: '',
+    attachments: [],
     createdAt: new Date().toISOString(),
   };
 }

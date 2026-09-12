@@ -13,7 +13,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const res = await fetch(path, {
     ...init,
     headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      // FormData のときは境界つきの Content-Type をブラウザに決めさせる
+      ...(typeof init?.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },
   });

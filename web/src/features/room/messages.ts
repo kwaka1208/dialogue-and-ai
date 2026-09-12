@@ -8,6 +8,13 @@ const TEXT: Record<string, string> = {
   invalid_body: 'メッセージが ながすぎるか、からっぽです',
   not_joined: 'もういちど なまえを いれて はいってね',
   not_found: 'この へやは みつかりません',
+  // 添付ファイル
+  unsupported_type: 'この しゅるいの ファイルは つけられません（しゃしん・txt・md・csv・pdf だけ）',
+  file_too_large: 'ファイルが おおきすぎます（10MBまで）',
+  empty_file: 'この ファイルは からっぽみたい',
+  too_many_files: 'ファイルは 3こまで つけられます',
+  no_file: 'ファイルを えらんでね',
+  already_sent: 'もう おくった ファイルは けせません',
 };
 
 export function errorText(code: string): string {

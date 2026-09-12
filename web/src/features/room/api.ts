@@ -1,5 +1,13 @@
 import { apiFetch } from '../../lib/api.ts';
-import type { AiStatus, Message, Participant, PresenceEntry, ReplyMode, RoomInfo } from './types.ts';
+import type {
+  AiStatus,
+  Attachment,
+  Message,
+  Participant,
+  PresenceEntry,
+  ReplyMode,
+  RoomInfo,
+} from './types.ts';
 
 export function roomInfo(roomId: string): Promise<RoomInfo> {
   return apiFetch<RoomInfo>(`/api/rooms/${roomId}`);
@@ -27,12 +35,33 @@ export function history(
 
 export function sendMessage(
   roomId: string,
-  input: { body: string; askAi: boolean },
+  input: { body: string; askAi: boolean; attachmentIds: string[] },
 ): Promise<{ message: Message; ai: AiStatus }> {
   return apiFetch(`/api/rooms/${roomId}/messages`, {
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+/**
+ * 発言より先にファイルを送っておく。
+ * 返ってきた id を、送信時に attachmentIds として渡す。
+ */
+export function uploadAttachment(roomId: string, file: File): Promise<{ attachment: Attachment }> {
+  const form = new FormData();
+  form.append('file', file);
+  // Content-Type は境界込みでブラウザに決めさせる
+  return apiFetch(`/api/rooms/${roomId}/attachments`, { method: 'POST', body: form });
+}
+
+/** 送る前に添付を取り消す */
+export function discardAttachment(roomId: string, attachmentId: string): Promise<{ ok: true }> {
+  return apiFetch(`/api/rooms/${roomId}/attachments/${attachmentId}`, { method: 'DELETE' });
+}
+
+/** 添付の中身のURL。img の src とダウンロードリンクの両方に使う */
+export function attachmentUrl(roomId: string, attachmentId: string): string {
+  return `/api/rooms/${roomId}/attachments/${attachmentId}`;
 }
 
 /** 生成中のAIの応答を打ち切る */

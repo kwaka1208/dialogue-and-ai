@@ -2,6 +2,16 @@
 
 export type ReplyMode = 'mention' | 'always';
 export type MessageKind = 'user' | 'ai' | 'system';
+export type AttachmentKind = 'image' | 'text' | 'pdf' | 'other';
+
+export interface Attachment {
+  id: string;
+  messageId: string | null;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  kind: AttachmentKind;
+}
 
 export interface Message {
   id: string;
@@ -10,6 +20,7 @@ export interface Message {
   participantId: string | null;
   displayName: string | null;
   body: string;
+  attachments: Attachment[];
   createdAt: string;
 }
 
