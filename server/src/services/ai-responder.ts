@@ -6,7 +6,7 @@
  */
 import { insertMessage, listMessages, updateMessageBody, deleteMessage } from '../repos/messages.js';
 import { AiEngineError, streamChatCompletion } from '../lib/ai-client.js';
-import { AI_HISTORY_LIMIT, buildChatMessages } from '../lib/prompt.js';
+import { AI_HISTORY_LIMIT, buildChatMessages, stripSpeakerPrefix } from '../lib/prompt.js';
 import { startRun, endRun, type AiRun } from '../lib/ai-runs.js';
 import { publish } from '../lib/room-hub.js';
 import type { Message } from '../types.js';
@@ -34,20 +34,49 @@ export function startAiResponse(roomId: string): boolean {
   return true;
 }
 
+/** 先頭が「なまえ:」かどうかを決めるために溜めておく文字数。名前は最大16文字まで見る */
+const LEAD_BUFFER = 24;
+
 async function generate(
   roomId: string,
   run: AiRun,
   history: Message[],
 ): Promise<void> {
+  // 先頭の「なまえ:」を落とすため、最初だけ少し溜めてから流しはじめる
+  let lead = '';
+  let leadFlushed = false;
+
+  const emit = (text: string): void => {
+    if (text === '') return;
+    run.body += text;
+    publish(roomId, { type: 'ai_delta', messageId: run.messageId, delta: text });
+  };
+
+  // 溜めたぶんを、接頭辞を落としてから流す。何度呼んでも1回しか効かない
+  const flushLead = (): void => {
+    if (leadFlushed) return;
+    leadFlushed = true;
+    emit(stripSpeakerPrefix(lead, history));
+    lead = '';
+  };
+
   try {
     for await (const delta of streamChatCompletion(buildChatMessages(history), run.controller.signal)) {
-      run.body += delta;
-      publish(roomId, { type: 'ai_delta', messageId: run.messageId, delta });
+      if (!leadFlushed) {
+        lead += delta;
+        // 改行が来たら1行目は出揃っている。判定を待つ理由はもうない
+        if (lead.length < LEAD_BUFFER && !lead.includes('\n')) continue;
+        flushLead();
+        continue;
+      }
+      emit(delta);
     }
+    flushLead(); // 溜めきらないまま終わる短い返事のため
     finish(roomId, run);
   } catch (error) {
     // 「とめる」で切ったときは失敗ではない。そこまでの本文を残して終わる
     if (run.stopped) {
+      flushLead();
       finish(roomId, run);
       return;
     }

@@ -6,9 +6,12 @@ import type { Message } from '../types.js';
 import type { ChatMessage } from './ai-client.js';
 
 export const KIDS_SYSTEM_PROMPT = `あなたは子どもたちの集まるチャットの部屋にいる、AIの仲間です。
+- あなたは画面に「AI」と出ます。自分で別の名前を名乗りません
 - 小学生にもわかる言葉で、短めに話します
 - この部屋には複数の子どもがいます。発言は「なまえ: 本文」の形で届きます
 - 返事をするときは、誰に向けた返事かわかるように名前を呼びます
+- 返事は、いちばん最後に話しかけてきた人ひとりに向けて書きます。ほかの子の発言にまとめて答えません
+- あなたの返事の先頭に「なまえ:」は付けません。名前は画面に出るので、本文だけを書きます
 - 答えをすぐ全部言わず、まず一緒に考えるヒントを出します
 - 個人情報（住所・学校名・電話番号）を聞かれても答えず、聞き出そうともしません
 - こわい話、暴力的な話、大人向けの話題にはのりません`;
@@ -21,6 +24,24 @@ const MENTION = /^[\s　]*[@＠]\s*(ai|えーあい|エーアイ)/i;
 
 export function mentionsAi(body: string): boolean {
   return MENTION.test(body);
+}
+
+/**
+ * モデルは履歴の「なまえ: 本文」という形を真似て、自分の返事にも接頭辞を付けてくることがある
+ * (Qwen3-VL はほぼ毎回付ける)。画面には発言者名が別に出るので、ここで落とす。
+ *
+ * 落とすのは履歴に出てくる発言者名と「AI」だけ。そうしないと「ヒント: 」のような
+ * ふつうの本文まで削ってしまう。
+ */
+export function stripSpeakerPrefix(text: string, history: Message[]): string {
+  const match = /^([^\n:：]{1,16})[:：][ 　]*/.exec(text);
+  const name = match?.[1]?.trim();
+  if (!match || !name) return text;
+
+  const known =
+    /^ai$/i.test(name) || history.some((message) => message.displayName?.trim() === name);
+
+  return known ? text.slice(match[0].length) : text;
 }
 
 /**

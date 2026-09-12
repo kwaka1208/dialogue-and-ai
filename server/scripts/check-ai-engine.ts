@@ -152,13 +152,28 @@ async function checkImageInput(model: string): Promise<void> {
     }),
   });
 
-  if (res.ok) {
-    console.log('  受け付けられました → 画像入力に対応している可能性が高い');
-    console.log(`  ${JSON.stringify(await res.json()).slice(0, 400)}`);
-  } else {
+  if (!res.ok) {
     console.log(`  拒否されました (${res.status}) → 画像はファイル名のみ伝える方式にする`);
     console.log(`  ${(await res.text()).slice(0, 400)}`);
+    return;
   }
+
+  // HTTP 200 でも画像を無視しているモデルがある (gpt-oss-120b は「画像が確認できません」と答える)。
+  // ステータスではなく本文を見て判定する
+  const json = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const body = json.choices?.[0]?.message?.content ?? '';
+  const blind = /(画像|ファイル)[^。]{0,20}(確認できません|見えません|受け取れ|添付され[てた]?いません|ありません)/.test(
+    body,
+  );
+
+  if (blind) {
+    console.log('  200 は返るが画素は見ていない → 画像はファイル名のみ伝える方式にする');
+  } else {
+    console.log('  画像の内容に触れた応答があった → 画像入力に対応している');
+  }
+  console.log(`  応答: ${body.slice(0, 200)}`);
 }
 
 async function main(): Promise<void> {

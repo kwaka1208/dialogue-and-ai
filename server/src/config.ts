@@ -2,7 +2,12 @@ import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
 import path from 'node:path';
 
-loadDotenv();
+// どこから起動しても同じ .env を読むように、パスを明示する。
+// (npm run -w server は cwd が server/ になるため、リポジトリルートも見る)
+const packageRoot = path.resolve(import.meta.dirname, '..');
+loadDotenv({
+  path: [path.join(packageRoot, '.env'), path.resolve(packageRoot, '..', '.env')],
+});
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -43,7 +48,6 @@ if (isProduction) {
 }
 
 // どこから起動しても同じ場所を指すように、server/ を基準に解決する
-const packageRoot = path.resolve(import.meta.dirname, '..');
 const dataDir = path.resolve(packageRoot, env.DATA_DIR);
 
 export const config = {
