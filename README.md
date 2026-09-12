@@ -21,6 +21,7 @@
 |---|---|
 | [`docs/development.md`](./docs/development.md) | 手元で動かして直すまで |
 | [`docs/deploy.md`](./docs/deploy.md) | サーバーに置いて運用するまで |
+| [`docs/update.md`](./docs/update.md) | 直した内容をサーバーに反映するまで |
 | [`kids-group-chat-handoff.md`](./kids-group-chat-handoff.md) | 設計の背景と仕様 |
 
 ## 動かす

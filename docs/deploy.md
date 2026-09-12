@@ -244,6 +244,9 @@ nginx なら `proxy_read_timeout` と `Connection ''` のあたり。
 
 ## 5. 更新デプロイ
 
+手元で直したものを反映する手順。控えの取り方から戻し方まで含めた詳しい版は
+[`update.md`](./update.md) にある。
+
 ```bash
 cd /opt/kids-group-chat
 sudo git pull
