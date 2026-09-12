@@ -13,6 +13,7 @@ import {
 } from '../repos/messages.js';
 import { AiEngineError, streamChatCompletion } from '../lib/ai-client.js';
 import { AI_HISTORY_LIMIT, buildChatMessages, stripSpeakerPrefix } from '../lib/prompt.js';
+import { createPlainTextFilter } from '../lib/plain-text.js';
 import { startRun, endRun, type AiRun } from '../lib/ai-runs.js';
 import { publish } from '../lib/room-hub.js';
 import { buildAttachmentPayloads } from './attachment-context.js';
@@ -52,11 +53,17 @@ async function generate(
   // 先頭の「なまえ:」を落とすため、最初だけ少し溜めてから流しはじめる
   let lead = '';
   let leadFlushed = false;
+  // Markdown の飾りを落とす。判定待ちのぶんは filter が抱えるので最後に flush する
+  const plain = createPlainTextFilter();
 
-  const emit = (text: string): void => {
+  const publishDelta = (text: string): void => {
     if (text === '') return;
     run.body += text;
     publish(roomId, { type: 'ai_delta', messageId: run.messageId, delta: text });
+  };
+
+  const emit = (text: string): void => {
+    publishDelta(plain.push(text));
   };
 
   // 溜めたぶんを、接頭辞を落としてから流す。何度呼んでも1回しか効かない
@@ -65,6 +72,12 @@ async function generate(
     leadFlushed = true;
     emit(stripSpeakerPrefix(lead, history));
     lead = '';
+  };
+
+  // 流しきる。接頭辞の判定待ちと、飾りの判定待ちの両方を吐き出す
+  const flushAll = (): void => {
+    flushLead();
+    publishDelta(plain.flush());
   };
 
   try {
@@ -82,12 +95,12 @@ async function generate(
       }
       emit(delta);
     }
-    flushLead(); // 溜めきらないまま終わる短い返事のため
+    flushAll(); // 溜めきらないまま終わる短い返事のため
     finish(roomId, run);
   } catch (error) {
     // 「とめる」で切ったときは失敗ではない。そこまでの本文を残して終わる
     if (run.stopped) {
-      flushLead();
+      flushAll();
       finish(roomId, run);
       return;
     }
