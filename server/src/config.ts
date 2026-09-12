@@ -42,7 +42,9 @@ if (isProduction) {
   }
 }
 
-const dataDir = path.resolve(env.DATA_DIR);
+// どこから起動しても同じ場所を指すように、server/ を基準に解決する
+const packageRoot = path.resolve(import.meta.dirname, '..');
+const dataDir = path.resolve(packageRoot, env.DATA_DIR);
 
 export const config = {
   nodeEnv: env.NODE_ENV,
@@ -61,7 +63,9 @@ export const config = {
 
   dataDir,
   dbPath: path.join(dataDir, 'kids-group-chat.sqlite'),
-  uploadDir: env.UPLOAD_DIR ? path.resolve(env.UPLOAD_DIR) : path.join(dataDir, 'uploads'),
+  uploadDir: env.UPLOAD_DIR
+    ? path.resolve(packageRoot, env.UPLOAD_DIR)
+    : path.join(dataDir, 'uploads'),
 
   // 部屋の既定値 (管理画面から部屋ごとに変更できる)
   roomDefaults: {

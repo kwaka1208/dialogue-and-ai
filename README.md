@@ -36,6 +36,23 @@ npm run typecheck
 
 Vite の dev サーバーは `/api` へのリクエストを BFF に転送する。
 
+## 部屋を作る
+
+管理画面はフェーズ6で作る。それまでは開発用スクリプトで作る。
+
+```bash
+npm run room:new -w server -- --name "テストのへや" --passcode 1234
+# → http://localhost:5173/r/xxxxxxxxxxxxxxxxxxxxxx が表示される
+```
+
+`ADMIN_TOKEN` を設定していれば管理APIからも作れる。
+
+```bash
+curl -X POST http://localhost:8787/api/admin/rooms \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"テストのへや","passcode":"1234","capacity":5}'
+```
+
 ## AI Engine の疎通確認
 
 `.env` に `SAKURA_AI_TOKEN` を設定してから実行する。
@@ -52,8 +69,8 @@ npm run check:ai -w server -- image   # 画像入力の可否
 
 - [x] フェーズ0 土台（リポジトリ構成、DBスキーマ、疎通スクリプト）
 - [ ] フェーズ1 AI Engine 疎通確認（トークン待ち）
-- [ ] フェーズ2 SSE でメッセージが流れる
-- [ ] フェーズ3 部屋と参加
+- [x] フェーズ2 SSE でメッセージが流れる
+- [x] フェーズ3 部屋と参加（入室・複数人の同時表示・在室者リスト）
 - [ ] フェーズ4 AI の合流
 - [ ] フェーズ5 添付ファイル
 - [ ] フェーズ6 管理画面とレート制限
