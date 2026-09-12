@@ -1,0 +1,27 @@
+:root {
+  /* 子どもが読む画面なので本文は16pxを下限にする */
+  --font-base: 1rem;
+  --color-bg: #fdfaf5;
+  --color-text: #2b2b2b;
+  --color-accent: #ff8a3d;
+
+  font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  font-size: 16px;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+.centered-page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}

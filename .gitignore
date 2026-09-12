@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+
+# SQLite
+data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# アップロードされた添付ファイル
+uploads/
+
+.DS_Store
