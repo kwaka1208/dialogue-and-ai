@@ -1,6 +1,5 @@
 /** server/src/types.ts と対応する。片方を変えたらもう片方も直すこと */
 
-export type ReplyMode = 'mention' | 'always';
 export type MessageKind = 'user' | 'ai' | 'system';
 export type AttachmentKind = 'image' | 'text' | 'pdf' | 'other';
 
@@ -43,23 +42,23 @@ export interface RoomInfo {
   id: string;
   name: string;
   requiresPasscode: boolean;
-  replyMode: ReplyMode;
   /** サーバーに AI Engine の設定があるか。無ければ子ども同士のチャットだけ動く */
   aiAvailable: boolean;
   closed: boolean;
   expiresAt: string;
 }
 
-/** 発言を送ったときに、AIの呼びかけがどう扱われたか */
+/** 「AIに いけんを きく」を押したときに、それがどう扱われたか */
 export type AiStatus =
   | 'started'
-  | 'none'
   | 'busy'
   | 'unavailable'
   | 'turn_limit'
   | 'rate_limited'
-  /** NGワードの候補に当たった発言。部屋には出るが、AIは返事をしない */
-  | 'filtered';
+  /** 前回の意見より後に、NGワードの候補に当たった発言がある */
+  | 'filtered'
+  /** まだ誰も発言していない。意見の材料が無い */
+  | 'no_messages';
 
 export type ServerEvent =
   | { type: 'message'; message: Message }

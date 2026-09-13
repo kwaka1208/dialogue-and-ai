@@ -24,7 +24,6 @@ import {
 import { startAiResponse, type AiSkipReason } from '../services/ai-responder.js';
 import { abortRun, activeRun } from '../lib/ai-runs.js';
 import { consume, retryAfterSeconds } from '../lib/rate-limit.js';
-import { mentionsAi } from '../lib/prompt.js';
 import { containsNgWord } from '../lib/word-filter.js';
 import { addConnection, isConnected, presenceOf, publish } from '../lib/room-hub.js';
 import { EventQueue } from '../lib/event-queue.js';
@@ -36,10 +35,11 @@ import {
   removeStoredFile,
   storeFile,
 } from '../lib/uploads.js';
+import { AI_HISTORY_LIMIT } from '../lib/prompt.js';
 import { isPast, isoAfterHours } from '../lib/time.js';
 import { sha256, safeEqual } from '../lib/ids.js';
 import { participantAuth, participantCookieName, type ParticipantEnv } from '../middleware/participant.js';
-import type { Room, ServerEvent } from '../types.js';
+import type { Message, Participant, Room, ServerEvent } from '../types.js';
 
 const HEARTBEAT_MS = 15_000;
 /** multipart の境界やヘッダーのぶん。Content-Length は本体より少し大きくなる */
@@ -59,7 +59,6 @@ const joinSchema = z.object({
 const postMessageSchema = z.object({
   // 添付だけを送ることもできるので、本文は空でもよい
   body: z.string().trim().max(2000),
-  askAi: z.boolean().default(false),
   attachmentIds: z.array(z.string()).max(MAX_FILES_PER_MESSAGE).default([]),
 });
 
@@ -74,7 +73,6 @@ roomsRoute.get('/:id', (c) => {
     id: room.id,
     name: room.name,
     requiresPasscode: room.passcodeHash !== null,
-    replyMode: room.replyMode,
     aiAvailable: isAiConfigured(),
     closed: isPast(room.expiresAt),
     expiresAt: room.expiresAt,
@@ -128,9 +126,7 @@ roomsRoute.post('/:id/join', async (c) => {
 });
 
 /** リロード後に入室済みかどうかを確かめる。cookie が生きていれば自分の情報が返る */
-roomsRoute.get('/:id/me', participantAuth, (c) =>
-  c.json({ participant: c.get('participant'), replyMode: c.get('room').replyMode }),
-);
+roomsRoute.get('/:id/me', participantAuth, (c) => c.json({ participant: c.get('participant') }));
 
 roomsRoute.get('/:id/messages', participantAuth, (c) => {
   const room = c.get('room');
@@ -147,7 +143,7 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
   const parsed = postMessageSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: 'invalid_body' }, 400);
 
-  const { body, askAi, attachmentIds } = parsed.data;
+  const { body, attachmentIds } = parsed.data;
   if (body === '' && attachmentIds.length === 0) return c.json({ error: 'invalid_body' }, 400);
 
   // 連投でタイムラインが埋まるのを防ぐ。普通に打つぶんには当たらない上限
@@ -158,7 +154,7 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
     );
   }
 
-  // 引っかかっても発言はそのまま部屋に出す。AIが動かないことと、ログの印だけが変わる
+  // 引っかかっても発言はそのまま部屋に出す。AIに意見を求められないことと、ログの印だけが変わる
   const flagged = containsNgWord(body);
 
   const created = insertMessage({
@@ -175,10 +171,18 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
 
   publish(room.id, { type: 'message', message: forRoom(message) });
 
-  return c.json({
-    message: forRoom(message),
-    ai: triggerAi(room, participant.id, body, askAi, flagged),
-  });
+  return c.json({ message: forRoom(message) });
+});
+
+/**
+ * 「AIに いけんを きく」ボタン。
+ * そこまでのやり取りについて、AIに意見を言ってもらう。発言は伴わない。
+ */
+roomsRoute.post('/:id/ai-opinion', participantAuth, (c) => {
+  const room = c.get('room');
+  const participant = c.get('participant');
+
+  return c.json({ ai: requestOpinion(room, participant) });
 });
 
 /** 送られないまま残った添付を、実体ごと片づける */
@@ -282,31 +286,43 @@ roomsRoute.get('/:id/attachments/:attachmentId', participantAuth, async (c) => {
 });
 
 /**
- * 呼びかけかどうかを判定し、応答を始める。
- * 発言そのものは保存ずみなので、AIが動かなくても部屋の会話は続く。
+ * 意見を求められるかどうかを判定し、生成を始める。
  *
  * 断る判定は、数を消費しないものから先に並べる。
  * 「混んでいて断られた」ぶんで参加者の枠や部屋のターンが減らないようにするため。
  */
-function triggerAi(
-  room: Room,
-  participantId: string,
-  body: string,
-  askAi: boolean,
-  flagged: boolean,
-): 'started' | 'none' | AiSkipReason {
-  const wanted = askAi || mentionsAi(body) || room.replyMode === 'always';
-  if (!wanted) return 'none';
+function requestOpinion(room: Room, participant: Participant): 'started' | AiSkipReason {
+  const recent = listMessages(room.id, AI_HISTORY_LIMIT);
 
-  if (flagged) return 'filtered';
+  if (!recent.some((message) => message.kind === 'user')) return 'no_messages';
+  // 前回の意見より後に印の付いた発言があれば、そこには触れさせない
+  if (sinceLastOpinion(recent).some((message) => message.flagged)) return 'filtered';
   if (!isAiConfigured()) return 'unavailable';
   if (activeRun(room.id)) return 'busy';
-  if (!consume('ai_turn', participantId, config.rateLimits.aiTurnsPerMinute)) return 'rate_limited';
+  if (!consume('ai_turn', participant.id, config.rateLimits.aiTurnsPerMinute)) return 'rate_limited';
   if (!consumeTurn(room.id)) return 'turn_limit';
-  // ここまで来ても、ほぼ同時の呼びかけで先を越されることはありうる
+
+  // 誰が意見を求めたかは、部屋の全員に見えるようにしておく。
+  // 意見の本体より先に入れないと、タイムラインで意見のあとに並んでしまう
+  const notice = insertMessage({
+    roomId: room.id,
+    kind: 'system',
+    body: `${participant.displayName} さんが AIに いけんを ききました`,
+  });
+  publish(room.id, { type: 'message', message: forRoom(notice) });
+
+  // ここまで来ても、ほぼ同時のボタンに先を越されることはありうる
   if (!startAiResponse(room.id)) return 'busy';
 
   return 'started';
+}
+
+/** 直近の履歴のうち、いちばん新しいAIの意見より後のぶん。無ければ全部 */
+function sinceLastOpinion(recent: Message[]): Message[] {
+  for (let index = recent.length - 1; index >= 0; index -= 1) {
+    if (recent[index]!.kind === 'ai') return recent.slice(index + 1);
+  }
+  return recent;
 }
 
 /** 「とめる」ボタン。生成中のAIの応答を打ち切る */

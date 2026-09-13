@@ -24,13 +24,14 @@ export function errorText(code: string): string {
   return TEXT[code] ?? 'うまく いかなかったみたい。もういちど ためしてね';
 }
 
-/** AIへの呼びかけが受け付けられなかったとき、自分の画面にだけ出す */
+/** 意見のおねがいが受け付けられなかったとき、自分の画面にだけ出す */
 const AI_NOTICE: Record<string, string> = {
-  busy: 'いま AIは べつの おへんじを かいているよ。おわってから きいてね',
+  busy: 'いま AIが いけんを かいているよ。おわってから きいてね',
   unavailable: 'いまは AIが おやすみちゅう。みんなだけで おはなし できるよ',
   turn_limit: 'この へやで AIに きける かいすうが いっぱいに なりました',
   rate_limited: 'AIに きくのは 1ぷんに 3かいまで。すこし まってから きいてね',
-  filtered: 'いまの いいかたには、AIは おへんじ しないよ。ことばを かえて きいてみてね',
+  filtered: 'いまの はなしには、AIは いけんを いわないよ。ことばを かえて はなしてみてね',
+  no_messages: 'まだ だれも はなしていないみたい。すこし はなしてから きいてね',
 };
 
 export function aiNoticeText(status: string): string | null {
@@ -39,7 +40,7 @@ export function aiNoticeText(status: string): string | null {
 
 /** ai_error の理由。timeout と failed はサーバーが部屋ぜんたいに流すので、ここでは出さない */
 const AI_ERROR: Record<string, string> = {
-  empty: 'AIが なにも いえなかったみたい。きき方を かえて もういちど きいてみてね',
+  empty: 'AIが なにも いえなかったみたい。すこし はなしてから もういちど きいてみてね',
 };
 
 export function aiErrorText(reason: string): string | null {

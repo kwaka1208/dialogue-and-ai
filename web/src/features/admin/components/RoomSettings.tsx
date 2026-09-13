@@ -12,7 +12,6 @@ export function RoomSettings({ room, onSaved }: RoomSettingsProps) {
   const [name, setName] = useState(room.name);
   const [capacity, setCapacity] = useState(String(room.capacity));
   const [turnLimit, setTurnLimit] = useState(String(room.turnLimit));
-  const [replyMode, setReplyMode] = useState(room.replyMode);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,15 +20,13 @@ export function RoomSettings({ room, onSaved }: RoomSettingsProps) {
     setName(room.name);
     setCapacity(String(room.capacity));
     setTurnLimit(String(room.turnLimit));
-    setReplyMode(room.replyMode);
     setError(null);
-  }, [room.id, room.name, room.capacity, room.turnLimit, room.replyMode]);
+  }, [room.id, room.name, room.capacity, room.turnLimit]);
 
   const changed =
     name !== room.name ||
     Number(capacity) !== room.capacity ||
-    Number(turnLimit) !== room.turnLimit ||
-    replyMode !== room.replyMode;
+    Number(turnLimit) !== room.turnLimit;
 
   const handleSubmit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -41,7 +38,6 @@ export function RoomSettings({ room, onSaved }: RoomSettingsProps) {
         name,
         capacity: Number(capacity),
         turnLimit: Number(turnLimit),
-        replyMode,
       });
       await onSaved();
     } catch {
@@ -92,18 +88,6 @@ export function RoomSettings({ room, onSaved }: RoomSettingsProps) {
           <span className="field-hint">これまでに使った {room.turnsUsed} 回は戻らない</span>
         </label>
       </div>
-
-      <label className="field">
-        <span className="field-label">AIの返し方</span>
-        <select
-          className="field-input"
-          value={replyMode}
-          onChange={(e) => setReplyMode(e.target.value === 'always' ? 'always' : 'mention')}
-        >
-          <option value="mention">呼ばれたら返す</option>
-          <option value="always">毎回返す</option>
-        </select>
-      </label>
 
       {error && <p className="form-error">{error}</p>}
 

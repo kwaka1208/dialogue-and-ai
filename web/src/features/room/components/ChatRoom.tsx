@@ -15,26 +15,44 @@ interface ChatRoomProps {
   onLeft: () => void;
 }
 
+function askButtonTitle(aiEnabled: boolean, aiBusy: boolean): string {
+  if (!aiEnabled) return 'いまは AIが おやすみちゅう';
+  if (aiBusy) return 'AIが いけんを かいているよ';
+  return 'ここまでの はなしについて AIの いけんを きく';
+}
+
 export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
   const { messages, participants, status, loadError, roomClosed, kicked, streamingId, aiError } =
     useRoomStream(room.id);
   const [sendError, setSendError] = useState<string | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
+  // 意見をたのんでから、受け付けられたかどうかが返るまで
+  const [asking, setAsking] = useState(false);
 
-  const handleSend = async (
-    body: string,
-    askAi: boolean,
-    attachmentIds: string[],
-  ): Promise<boolean> => {
+  const handleSend = async (body: string, attachmentIds: string[]): Promise<boolean> => {
     setSendError(null);
     setAiNotice(null);
     try {
-      const { ai } = await api.sendMessage(room.id, { body, askAi, attachmentIds });
-      setAiNotice(aiNoticeText(ai));
+      await api.sendMessage(room.id, { body, attachmentIds });
       return true;
     } catch (error) {
       setSendError(errorText(error instanceof ApiError ? error.code : 'unknown'));
       return false;
+    }
+  };
+
+  /** 「AIに いけんを きく」。発言は送らず、ここまでのやり取りを見てもらう */
+  const handleAskOpinion = async (): Promise<void> => {
+    setSendError(null);
+    setAiNotice(null);
+    setAsking(true);
+    try {
+      const { ai } = await api.askOpinion(room.id);
+      setAiNotice(aiNoticeText(ai));
+    } catch (error) {
+      setSendError(errorText(error instanceof ApiError ? error.code : 'unknown'));
+    } finally {
+      setAsking(false);
     }
   };
 
@@ -114,13 +132,20 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
         </button>
       )}
 
-      <Composer
-        roomId={room.id}
-        onSend={handleSend}
-        aiEnabled={room.aiAvailable}
-        aiBusy={streamingId !== null}
-        disabled={roomClosed}
-      />
+      <div className="ai-ask">
+        <button
+          className="ai-button"
+          type="button"
+          onClick={() => void handleAskOpinion()}
+          disabled={!room.aiAvailable || streamingId !== null || asking || roomClosed}
+          title={askButtonTitle(room.aiAvailable, streamingId !== null)}
+        >
+          🤖 AIに いけんを きく
+        </button>
+        <p className="ai-ask-hint">ここまでの みんなの はなしを 見て、AIが いけんを いいます</p>
+      </div>
+
+      <Composer roomId={room.id} onSend={handleSend} disabled={roomClosed} />
     </div>
   );
 }

@@ -104,7 +104,6 @@ export const config = {
     capacity: 20,
     expiresInHours: 4,
     turnLimit: 100,
-    replyMode: 'mention' as const,
   },
 
   // 参加者ごとの連投の上限 (直近1分あたり)。部屋ごとの上限は turn_limit が持つ

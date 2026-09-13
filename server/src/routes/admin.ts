@@ -66,7 +66,6 @@ const createRoomSchema = z.object({
     .string()
     .regex(/^\d{4}$/, '合言葉は4桁の数字')
     .optional(),
-  replyMode: z.enum(['mention', 'always']).optional(),
   capacity: z.number().int().min(1).max(100).optional(),
   turnLimit: z.number().int().min(1).max(10_000).optional(),
   expiresInHours: z.number().min(0.5).max(72).optional(),
@@ -76,7 +75,6 @@ const createRoomSchema = z.object({
 const updateRoomSchema = z
   .object({
     name: z.string().trim().min(1).max(40).optional(),
-    replyMode: z.enum(['mention', 'always']).optional(),
     capacity: z.number().int().min(1).max(100).optional(),
     turnLimit: z.number().int().min(1).max(10_000).optional(),
   })

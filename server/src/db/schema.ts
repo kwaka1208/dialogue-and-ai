@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS rooms (
   id            TEXT PRIMARY KEY,          -- 22文字のランダム文字列 (base62)
   name          TEXT NOT NULL,
   passcode_hash TEXT,                      -- NULL可。設定時は4桁の合言葉のハッシュ
-  reply_mode    TEXT NOT NULL,             -- 'mention' | 'always'
+  reply_mode    TEXT NOT NULL DEFAULT 'mention',  -- 使わなくなった列。古いDBとの互換のために残す
   capacity      INTEGER NOT NULL,
   turn_limit    INTEGER NOT NULL,
   turns_used    INTEGER NOT NULL DEFAULT 0,
