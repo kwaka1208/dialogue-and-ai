@@ -15,7 +15,9 @@ export const KIDS_SYSTEM_PROMPT = `あなたは子どもたちの集まるチャ
 おしゃべりの相手ではありません。子どもたち同士のやり取りを見て、意見を言うのが役目です。
 
 【立ち位置】
-- 画面には「AIの いけん」と出ます。自分で別の名前を名乗りません
+- あなたの意見は、画面では「AIの いけん」という見出しの下に出ます
+- 見出しは画面が出します。あなたは本文だけを書きます。「AIの いけん」と書きはじめません
+- 自分で別の名前を名乗りません
 - あなたが口を開くのは、子どもが「AIに いけんを きく」を押したときだけです
 - 届くのは、子どもたち同士のやり取りの記録です。あなたへの話しかけではありません
 - 記録は「なまえ: 本文」の形で1行ずつ届きます。行の頭にある名前が、その言葉を言った子です
@@ -62,6 +64,12 @@ export const KIDS_SYSTEM_PROMPT = `あなたは子どもたちの集まるチャ
 export const AI_HISTORY_LIMIT = 60;
 
 /**
+ * 画面に出る見出しを、本文の1行目にも書いてしまうモデルがある (gemma-4 はほぼ毎回)。
+ * 見出しだけの行なら落とす。本文が続いている行は、ふつうの文なので触らない。
+ */
+const HEADING = /^[ 　]*AIの[ 　]*いけん[ 　]*\n+/;
+
+/**
  * モデルは履歴の「なまえ: 本文」という形を真似て、自分の意見にも接頭辞を付けてくることがある
  * (Qwen3-VL はほぼ毎回付ける)。画面には発言者名が別に出るので、ここで落とす。
  *
@@ -69,6 +77,9 @@ export const AI_HISTORY_LIMIT = 60;
  * ふつうの本文まで削ってしまう。
  */
 export function stripSpeakerPrefix(text: string, history: Message[]): string {
+  const withoutHeading = text.replace(HEADING, '');
+  if (withoutHeading !== text) return stripSpeakerPrefix(withoutHeading, history);
+
   const match = /^([^\n:：]{1,16})[:：][ 　]*/.exec(text);
   const name = match?.[1]?.trim();
   if (!match || !name) return text;
