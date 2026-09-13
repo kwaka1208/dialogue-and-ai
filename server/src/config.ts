@@ -22,7 +22,14 @@ const schema = z.object({
   SAKURA_AI_BASE_URL: z.string().url().default('https://api.ai.sakura.ad.jp/v1'),
   SAKURA_AI_MODEL: z.string().optional(),
 
-  ADMIN_TOKEN: z.string().optional(),
+  // 管理画面のGoogleログイン。Google Cloud コンソールで作るウェブアプリケーションのクライアントID
+  GOOGLE_CLIENT_ID: z.string().optional(),
+
+  // 特権管理者のメールアドレス。カンマ区切り。ここが管理者アカウントの起点になる
+  SUPER_ADMIN_EMAILS: z.string().default(''),
+
+  // 管理セッションの有効時間
+  ADMIN_SESSION_TTL_HOURS: z.coerce.number().positive().max(720).default(12),
 
   DATA_DIR: z.string().default('./data'),
   UPLOAD_DIR: z.string().optional(),
@@ -42,11 +49,26 @@ const env = parsed.data;
 
 // 本番では秘密の値を省略させない
 if (isProduction) {
-  const missing = (['ADMIN_TOKEN', 'SAKURA_AI_TOKEN'] as const).filter((key) => !env[key]);
+  const missing = (['GOOGLE_CLIENT_ID', 'SAKURA_AI_TOKEN'] as const).filter((key) => !env[key]);
   if (missing.length > 0) {
     console.error(`本番環境では次の環境変数が必須です: ${missing.join(', ')}`);
     process.exit(1);
   }
+}
+
+/**
+ * 特権管理者のメールアドレス。比較を揺らさないよう小文字に寄せる。
+ * ここが唯一の情報源で、DBには特権かどうかを持たせない。
+ * (DBに持たせると .env を直したのに権限が戻らない、という食い違いが起きる)
+ */
+const superAdminEmails = env.SUPER_ADMIN_EMAILS.split(',')
+  .map((email) => email.trim().toLowerCase())
+  .filter((email) => email.length > 0);
+
+// 特権管理者が居ないと、管理者アカウントを1つも登録できないまま詰む
+if (isProduction && superAdminEmails.length === 0) {
+  console.error('本番環境では SUPER_ADMIN_EMAILS に最低1件のメールアドレスが必要です');
+  process.exit(1);
 }
 
 // どこから起動しても同じ場所を指すように、server/ を基準に解決する
@@ -64,7 +86,11 @@ export const config = {
     timeoutMs: 60_000,
   },
 
-  adminToken: env.ADMIN_TOKEN,
+  admin: {
+    googleClientId: env.GOOGLE_CLIENT_ID,
+    superAdminEmails,
+    sessionTtlHours: env.ADMIN_SESSION_TTL_HOURS,
+  },
 
   dataDir,
   dbPath: path.join(dataDir, 'kids-group-chat.sqlite'),
@@ -91,4 +117,14 @@ export const config = {
 /** AI Engine を呼べる状態か。未設定なら子ども同士のチャットだけ動かす */
 export function isAiConfigured(): boolean {
   return Boolean(config.ai.token && config.ai.model);
+}
+
+/** 管理画面のGoogleログインを使える状態か */
+export function isAdminAuthConfigured(): boolean {
+  return Boolean(config.admin.googleClientId);
+}
+
+/** .env に書かれた特権管理者か。メールアドレスの大文字小文字は無視する */
+export function isSuperAdminEmail(email: string): boolean {
+  return config.admin.superAdminEmails.includes(email.trim().toLowerCase());
 }

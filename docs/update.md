@@ -126,11 +126,15 @@ sudoedit /opt/kids-group-chat/.env
 sudo systemctl restart kids-group-chat
 ```
 
-2つ気をつける。
+3つ気をつける。
 
 - **`UPLOAD_DIR` は足さない。** 相対パスのまま入るとリポジトリの中を指し、`ProtectSystem=strict`
   に阻まれて起動時に `ENOENT` で落ちる（[`deploy.md` の2章](./deploy.md#env-を書く)）
 - **所有者と権限を保つ。** `sudoedit` なら変わらないが、`cp` や `tee` で作り直したときは戻す
+- **フェーズ9への更新では `ADMIN_TOKEN` が使えなくなる。** 管理画面はGoogleログインに変わった。
+  `GOOGLE_CLIENT_ID` と `SUPER_ADMIN_EMAILS` を足してから再起動しないと、起動時に弾かれる。
+  用意のしかたは [`deploy.md` の2章](./deploy.md#googleログインの用意)。`ADMIN_TOKEN` の行は
+  読まれなくなるので、消してよい
 
 ```bash
 sudo chown kidschat:kidschat /opt/kids-group-chat/.env
@@ -139,6 +143,9 @@ ls -l /opt/kids-group-chat/.env
 ```
 
 DBの列を足す変更は、起動時に `server/src/db/index.ts` が流すので、手でまわすものは無い。
+
+フェーズ9で `rooms` に所有者の列が増えたが、それまでにあった部屋は所有者なしとして残る。
+管理画面では特権管理者にだけ見え、他の管理者からは見えなくなる。
 
 ---
 
@@ -204,7 +211,9 @@ sudo systemctl restart kids-group-chat
 | 起動してすぐ落ちる | `journalctl` に「本番環境では次の環境変数が必須です」が出ていないか。`.env` の埋め忘れ |
 | `ENOENT: mkdir '/opt/.../server/data/uploads'` | `.env` に `UPLOAD_DIR` の相対パスが入った（5章） |
 | 画面が真っ白・ファイルが404 | 更新前から開いていた画面。再読み込みする |
-| `/api/admin` が503 | `ADMIN_TOKEN` が読めていない。`.env` の所有者が `kidschat` か（5章） |
+| `/api/admin` が503 | `GOOGLE_CLIENT_ID` が読めていない。`.env` の所有者が `kidschat` か（5章） |
+| 更新後に管理画面へ入れない | フェーズ9でGoogleログインに変わった。`GOOGLE_CLIENT_ID` と `SUPER_ADMIN_EMAILS` を足したか（5章） |
+| 更新後に部屋が一覧から消えた | それまでの部屋は所有者なしになる。特権管理者でログインすれば見える |
 | 「古い attachments テーブルにデータが残っています」 | フェーズ5より前のDB。手で移すか、控えを取ってから作り直す |
 
 ほかの症状は [`deploy.md` の8章](./deploy.md#8-困ったときに見る場所)にまとめてある。

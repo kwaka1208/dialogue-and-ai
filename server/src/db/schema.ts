@@ -3,6 +3,27 @@
  * すべて `CREATE ... IF NOT EXISTS` なので、起動のたびに流して問題ない。
  */
 export const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS admin_accounts (
+  id            TEXT PRIMARY KEY,
+  email         TEXT NOT NULL UNIQUE,      -- Googleアカウントのメールアドレス。小文字で持つ
+  name          TEXT,                      -- 表示名。初回ログイン時にGoogleの値で埋める
+  created_by    TEXT REFERENCES admin_accounts(id),  -- 登録した特権管理者。自動登録は NULL
+  disabled_at   TEXT,                      -- 入るとログインできない
+  last_login_at TEXT,
+  created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  id         TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES admin_accounts(id),
+  token_hash TEXT NOT NULL,                -- cookie の生の値は保存しない
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_account ON admin_sessions(account_id);
+
 CREATE TABLE IF NOT EXISTS rooms (
   id            TEXT PRIMARY KEY,          -- 22文字のランダム文字列 (base62)
   name          TEXT NOT NULL,
@@ -13,6 +34,7 @@ CREATE TABLE IF NOT EXISTS rooms (
   turns_used    INTEGER NOT NULL DEFAULT 0,
   expires_at    TEXT NOT NULL,
   deleted_at    TEXT,
+  created_by    TEXT REFERENCES admin_accounts(id),  -- 作った管理者。NULL は所有者不明の古い部屋
   created_at    TEXT NOT NULL
 );
 

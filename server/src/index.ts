@@ -3,12 +3,14 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import fs from 'node:fs';
 import path from 'node:path';
-import { config, isAiConfigured } from './config.js';
+import { config, isAdminAuthConfigured, isAiConfigured } from './config.js';
 import { getDb, closeDb } from './db/index.js';
+import { purgeExpiredSessions } from './repos/admin-sessions.js';
 import { abortAllRuns, hasActiveRuns } from './lib/ai-runs.js';
 import { closeAllConnections } from './lib/room-hub.js';
 import { roomsRoute } from './routes/rooms.js';
 import { adminRoute } from './routes/admin.js';
+import { adminAuthRoute } from './routes/admin-auth.js';
 
 const app = new Hono();
 
@@ -25,6 +27,9 @@ app.get('/api/health', (c) =>
 );
 
 app.route('/api/rooms', roomsRoute);
+// ログインの入口だけは /api/admin の外に置く。
+// /api/admin は丸ごと「要ログイン」なので、同じ下に置くと自分で自分を締め出す
+app.route('/api/admin-auth', adminAuthRoute);
 app.route('/api/admin', adminRoute);
 
 // どのルートにも当たらなかった /api は、この下の静的配信まで落とさずにJSONで返す。
@@ -42,14 +47,19 @@ if (fs.existsSync(webDist)) {
 }
 
 getDb();
+purgeExpiredSessions();
 
 const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`BFF listening on http://localhost:${info.port}`);
   if (!isAiConfigured()) {
     console.log('SAKURA_AI_TOKEN / SAKURA_AI_MODEL が未設定です。AIの応答は無効のまま起動します。');
   }
-  if (!config.adminToken) {
-    console.log('ADMIN_TOKEN が未設定です。/api/admin は 503 を返します。');
+  if (!isAdminAuthConfigured()) {
+    console.log('GOOGLE_CLIENT_ID が未設定です。/api/admin は 503 を返します。');
+  } else if (config.admin.superAdminEmails.length === 0) {
+    console.log(
+      'SUPER_ADMIN_EMAILS が未設定です。管理者アカウントを登録できる人が居ない状態です。',
+    );
   }
 });
 

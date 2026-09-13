@@ -8,7 +8,7 @@ import type { RoomSummary } from '../types.ts';
  */
 const RELOAD_INTERVAL_MS = 15_000;
 
-export function useRooms(token: string): {
+export function useRooms(): {
   rooms: RoomSummary[];
   error: string | null;
   reload: () => Promise<void>;
@@ -18,13 +18,13 @@ export function useRooms(token: string): {
 
   const reload = useCallback(async (): Promise<void> => {
     try {
-      const data = await api.listRooms(token);
+      const data = await api.listRooms();
       setRooms(data.rooms);
       setError(null);
     } catch {
       setError('部屋の一覧を読み込めませんでした');
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     void reload();

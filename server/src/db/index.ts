@@ -20,6 +20,8 @@ export function getDb(): Database.Database {
   migrate(db);
   db.exec(SCHEMA_SQL);
   addMissingColumns(db);
+  // あとから足した列への索引は、列が揃ってから作る
+  db.exec('CREATE INDEX IF NOT EXISTS idx_rooms_owner ON rooms(created_by)');
 
   instance = db;
   return db;
@@ -63,6 +65,8 @@ function addMissingColumns(db: Database.Database): void {
     { table: 'participants', column: 'kicked_at', definition: 'TEXT' },
     // フェーズ7: NGワードの印
     { table: 'messages', column: 'flagged', definition: 'INTEGER NOT NULL DEFAULT 0' },
+    // フェーズ9: 部屋の所有者。既存の部屋は所有者不明 (NULL) になり、特権管理者だけが見られる
+    { table: 'rooms', column: 'created_by', definition: 'TEXT REFERENCES admin_accounts(id)' },
   ];
 
   for (const { table, column, definition } of additions) {

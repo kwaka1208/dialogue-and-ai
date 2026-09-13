@@ -8,10 +8,7 @@ import type { AdminMessage, RoomDetail } from '../types.ts';
  */
 const RELOAD_INTERVAL_MS = 10_000;
 
-export function useRoomDetail(
-  token: string,
-  roomId: string,
-): {
+export function useRoomDetail(roomId: string): {
   detail: RoomDetail | null;
   messages: AdminMessage[];
   error: string | null;
@@ -24,8 +21,8 @@ export function useRoomDetail(
   const reload = useCallback(async (): Promise<void> => {
     try {
       const [next, log] = await Promise.all([
-        api.roomDetail(token, roomId),
-        api.roomMessages(token, roomId),
+        api.roomDetail(roomId),
+        api.roomMessages(roomId),
       ]);
       setDetail(next);
       setMessages(log.messages);
@@ -33,7 +30,7 @@ export function useRoomDetail(
     } catch {
       setError('部屋の情報を読み込めませんでした');
     }
-  }, [token, roomId]);
+  }, [roomId]);
 
   useEffect(() => {
     // 部屋を切り替えたら、前の部屋の内容を残さない

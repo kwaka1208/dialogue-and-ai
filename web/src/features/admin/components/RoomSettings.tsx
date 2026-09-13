@@ -3,13 +3,12 @@ import * as api from '../api.ts';
 import type { AdminRoom } from '../types.ts';
 
 interface RoomSettingsProps {
-  token: string;
   room: AdminRoom;
   onSaved: () => Promise<void>;
 }
 
 /** 部屋ごとの設定変更。合言葉と有効期限はここでは触らない（期限は「延長」ボタン） */
-export function RoomSettings({ token, room, onSaved }: RoomSettingsProps) {
+export function RoomSettings({ room, onSaved }: RoomSettingsProps) {
   const [name, setName] = useState(room.name);
   const [capacity, setCapacity] = useState(String(room.capacity));
   const [turnLimit, setTurnLimit] = useState(String(room.turnLimit));
@@ -38,7 +37,7 @@ export function RoomSettings({ token, room, onSaved }: RoomSettingsProps) {
     setError(null);
 
     try {
-      await api.updateRoom(token, room.id, {
+      await api.updateRoom(room.id, {
         name,
         capacity: Number(capacity),
         turnLimit: Number(turnLimit),

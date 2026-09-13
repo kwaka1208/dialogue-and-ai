@@ -83,14 +83,18 @@ sudo chmod 600 .env
 sudoedit /opt/kids-group-chat/.env   # または sudo nano /opt/kids-group-chat/.env
 ```
 
-本番で埋めるのはこの4つ。
+本番で埋めるのはこの5つ。
 
 ```env
 NODE_ENV=production
 SAKURA_AI_TOKEN=（AI Engine のトークン）
-ADMIN_TOKEN=（下のコマンドで作る）
+GOOGLE_CLIENT_ID=（下の「Googleログインの用意」で作る）
+SUPER_ADMIN_EMAILS=（特権管理者のメールアドレス。カンマ区切り）
 DATA_DIR=/var/lib/kids-group-chat
 ```
+
+`SUPER_ADMIN_EMAILS` に書いた人だけが、最初に管理画面へ入れる。ここから他の管理者を登録していく
+ので、空のままだと誰も入れない（本番では起動時に弾く）。
 
 それと、`UPLOAD_DIR` の行を消す。
 
@@ -104,12 +108,22 @@ sudo sed -i '/^UPLOAD_DIR=/d' /opt/kids-group-chat/.env
 `ProtectSystem=strict` で `/opt` には書けない）。`DATA_DIR` を直しても `UPLOAD_DIR` のほうが
 優先されるため、ここは見落としやすい。別の場所に置きたいときだけ、絶対パスで書く。
 
-```bash
-openssl rand -base64 32   # ADMIN_TOKEN 用
-```
+### Googleログインの用意
 
-`NODE_ENV=production` にすると、cookie に `Secure` が付き、`ADMIN_TOKEN` と
-`SAKURA_AI_TOKEN` の欠けを起動時に弾く。systemd のユニットでも
+[Google Cloud コンソール](https://console.cloud.google.com/) の
+「APIとサービス > 認証情報 > OAuth クライアント ID」を **ウェブ アプリケーション** として作り、
+「承認済みの JavaScript 生成元」に公開URL（`https://kids.example.com`）を足す。
+**末尾のスラッシュは付けない**。開発用の `http://localhost:5173` も入れておくと、同じクライアントIDで
+両方まかなえる。
+
+できたクライアントIDを `GOOGLE_CLIENT_ID` に入れる。クライアントシークレットは使わない
+（ブラウザが受け取った ID トークンをBFF側で検証する方式のため）。
+
+OAuth同意画面を「テスト中」のままにすると、テストユーザーに入れた人しかログインできない。
+管理者が固定なら、むしろそのほうが安全。
+
+`NODE_ENV=production` にすると、cookie に `Secure` が付き、`GOOGLE_CLIENT_ID` と
+`SAKURA_AI_TOKEN` の欠け、`SUPER_ADMIN_EMAILS` が空のままなのを起動時に弾く。systemd のユニットでも
 `NODE_ENV=production` を渡しているので、`.env` に書き忘れても本番として動く（dotenv は既にある
 環境変数を上書きしないので、両方に書いても食い違わない）。
 
@@ -228,7 +242,9 @@ curl -m 5 http://（サーバーのIP）:8787/api/health   # 繋がらない
 curl -s https://kids.example.com/api/health
 ```
 
-ブラウザで `https://kids.example.com/admin` を開き、`ADMIN_TOKEN` で入って部屋を1つ作る。
+ブラウザで `https://kids.example.com/admin` を開き、`SUPER_ADMIN_EMAILS` に書いたGoogleアカウントで
+ログインして部屋を1つ作る。初回ログインで、そのアカウントが管理者として自動登録される。
+他の先生に渡すときは、管理画面の「管理者アカウント」からメールアドレスを登録する。
 別の端末（できればスマホ）で部屋のURLを開き、次の3つを見る。
 
 1. 名前と合言葉で入れるか
@@ -313,6 +329,11 @@ sudo systemctl start kids-group-chat
 WAL のファイル（`-wal` / `-shm`）が残っていると、戻した本体と食い違う。止めてから入れ替えれば、
 `.backup` で取った写しに WAL のぶんも入っているので、古い WAL は消してよい。
 
+DBには管理者アカウントも入っている（`admin_accounts`）。戻すと、その控えを取った時点の登録状態に
+戻る。あとから登録した管理者は消えるので、控えより後に増やしたぶんは登録し直すこと。ログインの
+セッションは戻した時点で全部切れるが、入り直せばよいだけなので、気にしなくてよい。特権管理者は
+`.env` の `SUPER_ADMIN_EMAILS` で決まるので、DBを戻しても影響を受けない。
+
 ---
 
 ## 7. イベント当日の運用
@@ -322,10 +343,13 @@ WAL のファイル（`-wal` / `-shm`）が残っていると、戻した本体�
 - サーバーが起きているか（`systemctl status kids-group-chat`）
 - AI Engine の当月の使用量に余裕があるか（コントロールパネルで見る）
 - NGワードのリストを、集まる子どもに合わせて見直す（`.env` の `NG_WORDS_FILE`）
+- 当日 `/admin` を触る人のアカウントが登録ずみで、本人が**当日までに一度ログインできている**か。
+  登録しただけでは、Googleアカウントの取り違えや OAuth同意画面のテストユーザー漏れに気づけない
 
 **始める前**
 
-1. `/admin` で部屋を作る。定員・AIに聞ける回数・有効時間をその場に合わせる
+1. `/admin` で部屋を作る。定員・AIに聞ける回数・有効時間をその場に合わせる。部屋は**作った人のもの**
+   になるので、当日その部屋を見る人が自分でログインして作る（特権管理者なら誰の部屋でも見られる）
 2. 部屋のURLをコピーして、QRコードにするか短いURLにする
 3. 大人が先に1人入っておく
 
@@ -369,7 +393,9 @@ sudo journalctl -u caddy -n 50    # または sudo tail -f /var/log/nginx/error.
 | `systemctl reload caddy` が失敗する | 初回はまだ起動していない。`sudo systemctl enable --now caddy`（3章） |
 | Caddy が `opening log writer` で設定を読めない | `Caddyfile` の `log` がファイル出力になっている。`output stderr` にする |
 | 証明書が取れない | Caddy が起動しているか、`dig` が自分のIPを返すか、パケットフィルタ（3章） |
-| `/api/admin` が503 | `ADMIN_TOKEN` が読めていない。`.env` の所有者が `kidschat` になっているか |
+| `/api/admin` が503 | `GOOGLE_CLIENT_ID` が読めていない。`.env` の所有者が `kidschat` になっているか |
+| Googleのログインボタンが出ない | 「承認済みの JavaScript 生成元」に公開URLが入っているか。末尾のスラッシュは付けない |
+| ログインで「登録されていません」 | `SUPER_ADMIN_EMAILS` のアドレスと、ログインしたGoogleアカウントが一致しているか |
 | AIが黙ったまま | `/api/health` の `aiConfigured`。false ならトークンかモデル名 |
 | AIの返事がまとめて出る | Webサーバーのバッファ設定（3章） |
 | 添付が413 | nginx の `client_max_body_size` |
@@ -384,5 +410,7 @@ sudo journalctl -u caddy -n 50    # または sudo tail -f /var/log/nginx/error.
 ## メモ
 
 - 部屋のURLは秘密として扱う。アクセスログにURLを残さない設定にしてある（Caddyfile の `format filter`、nginx の `access_log off`）。変えるなら、ログをいつ消すかも決めること。Caddy のログは journald に出るので、残る期間は journald の設定に従う（`journalctl --vacuum-time=14d`）
-- `/admin` は `ADMIN_TOKEN` だけで入れる。子どもが使う端末では開いたままにしない（トークンは sessionStorage なので、タブを閉じれば消える）
+- `/admin` はGoogleアカウントでのログインが必須で、入れるのは登録ずみのアカウントだけ。セッションは HttpOnly cookie で、既定12時間（`ADMIN_SESSION_TTL_HOURS`）で切れる。子どもが使う端末では開いたままにしない
+- 管理者に渡すのは「管理画面に入れる権利」であって、他人の部屋までは見えない。すべての部屋を見られるのは `SUPER_ADMIN_EMAILS` に書いた特権管理者だけ
+- 管理者を辞めさせるときは、管理画面から無効化または削除する。その場で開いているセッションも切れる。特権管理者を外すときは `.env` を直して再起動する
 - サーバーは1台という前提で作ってある。在室者リストと参加者ごとのレート制限はプロセス内メモリで持っているので、2台に増やすと壊れる

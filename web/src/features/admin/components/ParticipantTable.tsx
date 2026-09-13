@@ -4,7 +4,6 @@ import { timeText } from '../format.ts';
 import type { AdminParticipant } from '../types.ts';
 
 interface ParticipantTableProps {
-  token: string;
   roomId: string;
   participants: AdminParticipant[];
   onChanged: () => Promise<void>;
@@ -16,12 +15,7 @@ function stateText(participant: AdminParticipant): string {
   return '退室';
 }
 
-export function ParticipantTable({
-  token,
-  roomId,
-  participants,
-  onChanged,
-}: ParticipantTableProps) {
+export function ParticipantTable({ roomId, participants, onChanged }: ParticipantTableProps) {
   // 押し間違いを防ぐため、2回押させる。確認ダイアログは出さない
   const [confirming, setConfirming] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
@@ -34,7 +28,7 @@ export function ParticipantTable({
 
     setWorking(participantId);
     try {
-      await api.kickParticipant(token, roomId, participantId);
+      await api.kickParticipant(roomId, participantId);
       await onChanged();
     } finally {
       setWorking(null);

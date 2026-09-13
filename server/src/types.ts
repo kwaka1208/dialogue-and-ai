@@ -3,6 +3,27 @@ export type MessageKind = 'user' | 'ai' | 'system';
 /** 添付の扱いの分かれ目。画面の見せ方とAIへの渡し方がこれで決まる */
 export type AttachmentKind = 'image' | 'text' | 'pdf' | 'other';
 
+/**
+ * 管理画面にログインできるアカウント。
+ * 特権かどうかはここには入れない (.env の SUPER_ADMIN_EMAILS が唯一の情報源)
+ */
+export interface AdminAccount {
+  id: string;
+  email: string;
+  name: string | null;
+  /** 登録した特権管理者のアカウントID。自動登録は null */
+  createdBy: string | null;
+  disabledAt: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+/** 認証を通ったあとの、権限つきのアカウント */
+export interface AdminIdentity {
+  account: AdminAccount;
+  isSuper: boolean;
+}
+
 export interface Room {
   id: string;
   name: string;
@@ -13,6 +34,8 @@ export interface Room {
   turnsUsed: number;
   expiresAt: string;
   deletedAt: string | null;
+  /** 作った管理者のアカウントID。null は所有者不明の古い部屋 */
+  createdBy: string | null;
   createdAt: string;
 }
 

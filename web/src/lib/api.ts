@@ -11,6 +11,8 @@ export class ApiError extends Error {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
+    // 管理セッションと参加者の cookie はどちらも同一オリジン。明示しておく
+    credentials: 'same-origin',
     ...init,
     headers: {
       // FormData のときは境界つきの Content-Type をブラウザに決めさせる

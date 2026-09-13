@@ -14,6 +14,10 @@ export interface AdminRoom {
   /** 合言葉そのものは返らない。設定されているかどうかだけ */
   hasPasscode: boolean;
   closed: boolean;
+  /** 作った管理者のアカウントID。null は所有者不明の古い部屋 */
+  createdBy: string | null;
+  /** 作った管理者のメールアドレス。特権管理者が一覧で見分けるための表示用 */
+  ownerEmail: string | null;
 }
 
 export interface RoomSummary extends AdminRoom {
@@ -35,8 +39,36 @@ export interface RoomDetail {
   url: string;
 }
 
+/** ログイン画面が最初に受け取る設定。ここだけは未ログインでも叩ける */
+export interface AuthConfig {
+  googleClientId: string | null;
+  configured: boolean;
+}
+
+/** 管理画面にログインできるアカウント */
+export interface AdminAccount {
+  id: string;
+  email: string;
+  name: string | null;
+  /** 登録した特権管理者のアカウントID。自動登録は null */
+  createdBy: string | null;
+  disabledAt: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  /** .env の SUPER_ADMIN_EMAILS に載っているか */
+  isSuper: boolean;
+}
+
+export interface CreateAccountInput {
+  email: string;
+  name?: string;
+}
+
 export interface AdminSession {
   ok: true;
+  account: AdminAccount;
+  /** すべての部屋を管理でき、アカウントの登録もできる */
+  isSuper: boolean;
   aiConfigured: boolean;
   roomDefaults: {
     capacity: number;

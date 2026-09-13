@@ -4,12 +4,11 @@ import { ApiError } from '../../../lib/api.ts';
 import type { AdminSession, RoomSummary } from '../types.ts';
 
 interface CreateRoomFormProps {
-  token: string;
   defaults: AdminSession['roomDefaults'];
   onCreated: (room: RoomSummary | null) => void;
 }
 
-export function CreateRoomForm({ token, defaults, onCreated }: CreateRoomFormProps) {
+export function CreateRoomForm({ defaults, onCreated }: CreateRoomFormProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [passcode, setPasscode] = useState('');
@@ -26,7 +25,7 @@ export function CreateRoomForm({ token, defaults, onCreated }: CreateRoomFormPro
     setError(null);
 
     try {
-      await api.createRoom(token, {
+      await api.createRoom({
         name,
         // 空欄なら合言葉なしで作る
         passcode: passcode === '' ? undefined : passcode,

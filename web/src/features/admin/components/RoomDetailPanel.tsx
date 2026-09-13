@@ -7,7 +7,6 @@ import { ParticipantTable } from './ParticipantTable.tsx';
 import { MessageLog } from './MessageLog.tsx';
 
 interface RoomDetailPanelProps {
-  token: string;
   roomId: string;
   /** 一覧の値も変わるので、部屋をいじったら親にも知らせる */
   onRoomChanged: () => Promise<void>;
@@ -17,13 +16,8 @@ interface RoomDetailPanelProps {
 /** 延長は4時間きざみ。イベントが延びたときに押す */
 const EXTEND_HOURS = 4;
 
-export function RoomDetailPanel({
-  token,
-  roomId,
-  onRoomChanged,
-  onRoomDeleted,
-}: RoomDetailPanelProps) {
-  const { detail, messages, error, reload } = useRoomDetail(token, roomId);
+export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDetailPanelProps) {
+  const { detail, messages, error, reload } = useRoomDetail(roomId);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -51,7 +45,7 @@ export function RoomDetailPanel({
       return;
     }
     await run('削除', async () => {
-      await api.deleteRoom(token, roomId);
+      await api.deleteRoom(roomId);
       setConfirmingDelete(false);
       onRoomDeleted();
       await onRoomChanged();
@@ -105,6 +99,10 @@ export function RoomDetailPanel({
           <dt>合言葉</dt>
           <dd>{room.hasPasscode ? 'あり' : 'なし'}</dd>
         </div>
+        <div>
+          <dt>作った人</dt>
+          <dd>{room.ownerEmail ?? '所有者なし'}</dd>
+        </div>
       </dl>
 
       <div className="admin-actions">
@@ -114,7 +112,7 @@ export function RoomDetailPanel({
           disabled={busy !== null}
           onClick={() =>
             void run('延長', async () => {
-              await api.extendRoom(token, roomId, EXTEND_HOURS);
+              await api.extendRoom(roomId, EXTEND_HOURS);
               await refresh();
             })
           }
@@ -126,7 +124,7 @@ export function RoomDetailPanel({
           type="button"
           disabled={busy !== null}
           onClick={() =>
-            void run('エクスポート', () => api.downloadExport(token, roomId))
+            void run('エクスポート', () => api.downloadExport(roomId))
           }
         >
           ログをエクスポート
@@ -154,7 +152,6 @@ export function RoomDetailPanel({
       <section className="admin-section">
         <h3 className="admin-section-title">参加者</h3>
         <ParticipantTable
-          token={token}
           roomId={roomId}
           participants={participants}
           onChanged={refresh}
@@ -163,7 +160,7 @@ export function RoomDetailPanel({
 
       <section className="admin-section">
         <h3 className="admin-section-title">設定</h3>
-        <RoomSettings token={token} room={room} onSaved={refresh} />
+        <RoomSettings room={room} onSaved={refresh} />
       </section>
 
       <section className="admin-section">

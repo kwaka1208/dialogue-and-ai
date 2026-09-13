@@ -1,7 +1,10 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from 'zod';
 import { config, isAiConfigured } from '../config.js';
-import { adminAuth } from '../middleware/admin.js';
+import { adminAuth, type AdminEnv } from '../middleware/admin.js';
+import { adminAccountsRoute } from './admin-accounts.js';
+import { getAccount } from '../repos/admin-accounts.js';
 import {
   createRoom,
   extendRoom,
@@ -25,9 +28,30 @@ const LOG_LIMIT = 500;
 function publicRoom(room: Room): Omit<Room, 'passcodeHash'> & {
   hasPasscode: boolean;
   closed: boolean;
+  /** 作った管理者のメールアドレス。特権管理者が一覧で見分けるために添える */
+  ownerEmail: string | null;
 } {
   const { passcodeHash, ...rest } = room;
-  return { ...rest, hasPasscode: passcodeHash !== null, closed: isPast(room.expiresAt) };
+  return {
+    ...rest,
+    hasPasscode: passcodeHash !== null,
+    closed: isPast(room.expiresAt),
+    ownerEmail: room.createdBy ? (getAccount(room.createdBy)?.email ?? null) : null,
+  };
+}
+
+/**
+ * 自分が管理してよい部屋を引く。
+ * 他人の部屋は「無い」ものとして 404 にする。403 にすると、
+ * IDを当てずっぽうに叩くだけで部屋の有無が分かってしまう。
+ */
+function ownedRoom(c: Context<AdminEnv>, roomId: string): Room | null {
+  const room = getRoom(roomId);
+  if (!room) return null;
+
+  const admin = c.get('admin');
+  if (admin.isSuper) return room;
+  return room.createdBy === admin.account.id ? room : null;
 }
 
 /** 参加者に「いま画面を開いているか」を足す。在室の判定は SSE の接続で見る */
@@ -58,19 +82,25 @@ const updateRoomSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, '変更する項目がありません');
 
-export const adminRoute = new Hono();
+export const adminRoute = new Hono<AdminEnv>();
 
 adminRoute.use('*', adminAuth);
 
-/** トークンの確認用。管理画面がログイン状態を判定するために叩く */
-adminRoute.get('/session', (c) =>
-  c.json({
+/** ログイン状態と、自分の権限の確認。管理画面が起動時に叩く */
+adminRoute.get('/session', (c) => {
+  const admin = c.get('admin');
+  return c.json({
     ok: true,
+    account: { ...admin.account, isSuper: admin.isSuper },
+    isSuper: admin.isSuper,
     aiConfigured: isAiConfigured(),
     roomDefaults: config.roomDefaults,
     rateLimits: config.rateLimits,
-  }),
-);
+  });
+});
+
+// アカウントの登録・削除。中でさらに特権管理者だけに絞っている
+adminRoute.route('/accounts', adminAccountsRoute);
 
 adminRoute.post('/rooms', async (c) => {
   const parsed = createRoomSchema.safeParse(await c.req.json().catch(() => null));
@@ -78,12 +108,15 @@ adminRoute.post('/rooms', async (c) => {
     return c.json({ error: 'invalid_input', detail: z.treeifyError(parsed.error) }, 400);
   }
 
-  const room = createRoom(parsed.data);
+  // 作った人を所有者として刻む。以後この部屋を触れるのは本人と特権管理者だけ
+  const room = createRoom({ ...parsed.data, createdBy: c.get('admin').account.id });
   return c.json({ room: publicRoom(room), url: `/r/${room.id}` }, 201);
 });
 
 adminRoute.get('/rooms', (c) => {
-  const rooms = listRooms().map((room) => ({
+  const admin = c.get('admin');
+  // 特権管理者は全部屋。ほかは自分が作った部屋だけ
+  const rooms = listRooms(admin.isSuper ? undefined : admin.account.id).map((room) => ({
     ...publicRoom(room),
     messageCount: countMessages(room.id),
     onlineCount: presenceOf(room.id).length,
@@ -94,7 +127,7 @@ adminRoute.get('/rooms', (c) => {
 
 /** 部屋1つの詳細。参加者と使用量をまとめて返す */
 adminRoute.get('/rooms/:id', (c) => {
-  const room = getRoom(c.req.param('id'));
+  const room = ownedRoom(c, c.req.param('id'));
   if (!room) return c.json({ error: 'not_found' }, 404);
 
   return c.json({
@@ -108,7 +141,7 @@ adminRoute.get('/rooms/:id', (c) => {
 
 /** ログ閲覧。直近 LOG_LIMIT 件まで */
 adminRoute.get('/rooms/:id/messages', (c) => {
-  const room = getRoom(c.req.param('id'));
+  const room = ownedRoom(c, c.req.param('id'));
   if (!room) return c.json({ error: 'not_found' }, 404);
 
   const requested = Number(c.req.query('limit') ?? LOG_LIMIT);
@@ -118,7 +151,7 @@ adminRoute.get('/rooms/:id/messages', (c) => {
 });
 
 adminRoute.get('/rooms/:id/export', (c) => {
-  const room = getRoom(c.req.param('id'));
+  const room = ownedRoom(c, c.req.param('id'));
   if (!room) return c.json({ error: 'not_found' }, 404);
 
   const body = {
@@ -138,12 +171,16 @@ adminRoute.patch('/rooms/:id', async (c) => {
     return c.json({ error: 'invalid_input', detail: z.treeifyError(parsed.error) }, 400);
   }
 
+  if (!ownedRoom(c, c.req.param('id'))) return c.json({ error: 'not_found' }, 404);
+
   const room = updateRoom(c.req.param('id'), parsed.data);
   if (!room) return c.json({ error: 'not_found' }, 404);
   return c.json({ room: publicRoom(room) });
 });
 
 adminRoute.post('/rooms/:id/extend', async (c) => {
+  if (!ownedRoom(c, c.req.param('id'))) return c.json({ error: 'not_found' }, 404);
+
   const hours = z.number().min(0.5).max(72).safeParse((await c.req.json().catch(() => ({})))?.hours);
   const room = extendRoom(c.req.param('id'), hours.success ? hours.data : 4);
   if (!room) return c.json({ error: 'not_found' }, 404);
@@ -156,7 +193,7 @@ adminRoute.post('/rooms/:id/extend', async (c) => {
  */
 adminRoute.post('/rooms/:id/participants/:participantId/kick', (c) => {
   const roomId = c.req.param('id');
-  const room = getRoom(roomId);
+  const room = ownedRoom(c, roomId);
   if (!room) return c.json({ error: 'not_found' }, 404);
 
   const target = getParticipant(c.req.param('participantId'));
@@ -183,6 +220,7 @@ adminRoute.post('/rooms/:id/participants/:participantId/kick', (c) => {
  */
 adminRoute.delete('/rooms/:id', async (c) => {
   const roomId = c.req.param('id');
+  if (!ownedRoom(c, roomId)) return c.json({ error: 'not_found' }, 404);
   if (!softDeleteRoom(roomId)) return c.json({ error: 'not_found' }, 404);
 
   // 開いたままの画面に「おわりました」を出す

@@ -879,6 +879,35 @@ body {
   color: var(--color-muted);
 }
 
+.admin-table tr.is-disabled td {
+  color: var(--color-muted);
+}
+
+/* アクションが2つ並ぶ列。ボタン同士がくっつかないように */
+.admin-table td .text-button + .text-button,
+.admin-table td .text-button + .danger-button {
+  margin-left: 0.5rem;
+}
+
+/* ---- 管理者アカウント ---- */
+
+/* ヘッダーに出すログイン中のアカウント */
+.admin-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+/* Googleのログインボタンが描かれる箱。中身の大きさはGoogle側が決める */
+.google-signin {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  margin: 1rem 0;
+}
+
 /* ---- 会話ログ ---- */
 
 .log-list {

@@ -14,6 +14,7 @@ interface RoomRow {
   turns_used: number;
   expires_at: string;
   deleted_at: string | null;
+  created_by: string | null;
   created_at: string;
 }
 
@@ -28,6 +29,7 @@ function toRoom(row: RoomRow): Room {
     turnsUsed: row.turns_used,
     expiresAt: row.expires_at,
     deletedAt: row.deleted_at,
+    createdBy: row.created_by,
     createdAt: row.created_at,
   };
 }
@@ -39,6 +41,8 @@ export interface CreateRoomInput {
   capacity?: number;
   turnLimit?: number;
   expiresInHours?: number;
+  /** 作った管理者のアカウントID。CLIから作ると null (所有者不明) になる */
+  createdBy?: string | null;
 }
 
 export function createRoom(input: CreateRoomInput): Room {
@@ -53,13 +57,14 @@ export function createRoom(input: CreateRoomInput): Room {
     turnsUsed: 0,
     expiresAt: isoAfterHours(input.expiresInHours ?? defaults.expiresInHours),
     deletedAt: null,
+    createdBy: input.createdBy ?? null,
     createdAt: nowIso(),
   };
 
   getDb()
     .prepare(
-      `INSERT INTO rooms (id, name, passcode_hash, reply_mode, capacity, turn_limit, turns_used, expires_at, created_at)
-       VALUES (@id, @name, @passcodeHash, @replyMode, @capacity, @turnLimit, 0, @expiresAt, @createdAt)`,
+      `INSERT INTO rooms (id, name, passcode_hash, reply_mode, capacity, turn_limit, turns_used, expires_at, created_by, created_at)
+       VALUES (@id, @name, @passcodeHash, @replyMode, @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
     )
     .run(room);
 
@@ -74,10 +79,24 @@ export function getRoom(id: string): Room | null {
   return row ? toRoom(row) : null;
 }
 
-export function listRooms(): Room[] {
-  const rows = getDb()
-    .prepare<[], RoomRow>('SELECT * FROM rooms WHERE deleted_at IS NULL ORDER BY created_at DESC')
-    .all();
+/**
+ * 部屋の一覧。
+ * ownerId を渡すと、その管理者が作った部屋だけに絞る。
+ * 所有者不明 (created_by IS NULL) の古い部屋は、絞り込むと出てこない。
+ */
+export function listRooms(ownerId?: string): Room[] {
+  const db = getDb();
+  const rows = ownerId
+    ? db
+        .prepare<[string], RoomRow>(
+          'SELECT * FROM rooms WHERE deleted_at IS NULL AND created_by = ? ORDER BY created_at DESC',
+        )
+        .all(ownerId)
+    : db
+        .prepare<[], RoomRow>(
+          'SELECT * FROM rooms WHERE deleted_at IS NULL ORDER BY created_at DESC',
+        )
+        .all();
   return rows.map(toRoom);
 }
 

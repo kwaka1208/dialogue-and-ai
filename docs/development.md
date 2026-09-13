@@ -40,11 +40,24 @@ cwd が `server/` になるが、`config.ts` がルートの `.env` も見るよ
 |---|---|---|
 | `SAKURA_AI_TOKEN` | 任意 | さくらのクラウドのコントロールパネルで AI Engine のトークンを発行する。未設定ならAIが黙ったままチャットだけ動く |
 | `SAKURA_AI_MODEL` | そのまま | `.env.example` の既定値（`preview/Qwen3-VL-30B-A3B-Instruct`）でよい |
-| `ADMIN_TOKEN` | `/admin` を触るなら必要 | 開発なら適当な文字列でよい。未設定だと `/api/admin` が 503 を返す |
+| `GOOGLE_CLIENT_ID` | `/admin` を触るなら必要 | 下の「Googleログインの用意」を見る。未設定だと `/api/admin` が 503 を返す |
+| `SUPER_ADMIN_EMAILS` | `/admin` を触るなら必要 | 自分のGoogleアカウントのメールアドレス。ここに書いた人だけが最初に入れる |
+| `ADMIN_SESSION_TTL_HOURS` | そのまま | ログインが切れるまでの時間。未設定なら12時間 |
 | `DATA_DIR` / `UPLOAD_DIR` | そのまま | 既定で `server/data` の下にDBと添付ファイルができる。`.gitignore` 済み |
 | `NG_WORDS_FILE` | 任意 | 未設定なら `server/src/lib/word-filter.ts` の既定のリストを使う |
 
-`ADMIN_TOKEN` を本番用に作るときは `openssl rand -base64 32`。
+### Googleログインの用意
+
+1. [Google Cloud コンソール](https://console.cloud.google.com/) でプロジェクトを作る（既存でもよい）
+2. 「APIとサービス > OAuth同意画面」を設定する（外部・テスト中のままでよい。テストユーザーに自分を入れる）
+3. 「APIとサービス > 認証情報 > 認証情報を作成 > OAuth クライアント ID」で **ウェブ アプリケーション** を選ぶ
+4. 「承認済みの JavaScript 生成元」に `http://localhost:5173` を足す（本番は公開URL。**末尾のスラッシュは付けない**）
+5. できたクライアントIDを `.env` の `GOOGLE_CLIENT_ID` に入れる
+
+クライアントシークレットは使わない。ブラウザが受け取った ID トークン（JWT）をBFFに渡し、
+BFF側が `google-auth-library` で署名・発行者・宛先・期限を確かめる方式にしてある。
+
+「承認済みのリダイレクト URI」は空のままでよい。リダイレクトを使わないため。
 
 参加者の cookie に秘密鍵は要らない。入室のときにランダムなトークンを作って渡し、DBにはその
 SHA-256 だけを持つ方式なので、署名用の鍵を置く場所が無い。
@@ -68,8 +81,8 @@ CORS は出てこない。BFFは `tsx watch` なので、保存すれば勝手�
 
 **1. 部屋を作る**
 
-`http://localhost:5173/admin` を開き、`.env` に入れた `ADMIN_TOKEN` で入って作る。
-コマンドからも作れる。
+`http://localhost:5173/admin` を開き、`SUPER_ADMIN_EMAILS` に書いたGoogleアカウントで
+ログインして作る。コマンドからも作れる。
 
 ```bash
 npm run room:new -w server -- --name "テストのへや" --passcode 1234
@@ -83,12 +96,15 @@ npm run room:new -w server -- --name "テストのへや" --passcode 1234
 | `--capacity` | 20 |
 | `--hours` | 4 |
 | `--always` | 付けると `replyMode: always`（毎回AIが返す） |
+| `--owner` | 所有者にする管理者のメールアドレス。省略すると所有者なしになり、管理画面では特権管理者にしか見えない |
 
-APIを直接叩いてもよい。
+APIを直接叩くこともできるが、管理APIは cookie のセッションが要る。ブラウザで一度ログインしてから
+開発者ツールの Network でリクエストをコピーするのが早い。
 
 ```bash
+# ブラウザの cookie をそのまま使う例
 curl -X POST http://localhost:8787/api/admin/rooms \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -H "Cookie: kgc_admin_session=<ブラウザから取った値>" -H 'Content-Type: application/json' \
   -d '{"name":"テストのへや","passcode":"1234","capacity":5}'
 ```
 
@@ -172,7 +188,10 @@ npm start            # node server/dist/index.js → http://localhost:8787
 |---|---|
 | `npm install` で `better-sqlite3` が失敗する | 2章のインストールスクリプトの承認。それでも駄目なら Node のバージョン |
 | AIが黙ったまま | `curl -s localhost:8787/api/health` の `aiConfigured`。false ならトークンかモデル名 |
-| `/admin` に入れない | `.env` の `ADMIN_TOKEN`。BFFを再起動したか（`.env` は起動時にしか読まない） |
+| `/admin` に入れない | `.env` の `GOOGLE_CLIENT_ID` と `SUPER_ADMIN_EMAILS`。BFFを再起動したか（`.env` は起動時にしか読まない） |
+| Googleのログインボタンが出ない | Google Cloud の「承認済みの JavaScript 生成元」に `http://localhost:5173` が入っているか。ブラウザのコンソールに GSI のエラーが出る |
+| ログインすると「登録されていません」 | `SUPER_ADMIN_EMAILS` のアドレスと、実際にログインしたGoogleアカウントが一致しているか |
+| 作ったはずの部屋が一覧に出ない | 他の管理者が作った部屋は見えない。CLI で `--owner` なしに作った部屋は特権管理者にしか見えない |
 | 1人目の画面が急に「入り直して」になる | 同じブラウザで同じ部屋に2人目として入り、cookie が上書きされた（4章） |
 | 発言が相手に出ない | ブラウザの Network で `/stream` がつながったままか。BFFの再起動で切れたなら再読み込み |
 | AIの返事が途中で止まる | サーバーのログに `[ai]` の行が出ていないか。タイムアウトは60秒 |
