@@ -9,6 +9,11 @@
 # HOST を付ければ SSH 越し、付けなければその場で実行する。
 # sudo のパスワードは、その1回の実行につき最初に1度だけ聞かれる。
 #
+# SSH 越しのときは、中で5回つなぐ (ディレクトリを作る / スクリプトを送る /
+# 設定を送る / 実行する / 片付ける)。何をしているところなのかは [n/5] で出る。
+# 接続は使い回すので、SSH のパスワードを聞かれるのも最初の1回だけ。
+# 使い回しを切りたいときは SSH_MUX=0 を付ける。
+#
 # ---------------------------------------------------------------------------
 # 設定値の出どころ
 # ---------------------------------------------------------------------------
@@ -88,20 +93,54 @@ FOLLOW        ?=
 # サーバー側にスクリプトを置く場所 (SSH_USER のホームの下)
 STAGE ?= .kids-group-chat-deploy
 
+# ---- SSH のつなぎ方 -------------------------------------------------------
+#
+# 1回の make で ssh / scp を5回叩く (下の run を見ること)。素のままだと、
+# パスワード認証のときにそのたびに聞かれてしまう。
+#
+# ControlMaster を使うと、最初の接続を残りが使い回すので、聞かれるのは
+# 最初の1回だけになる。ControlPersist の間 (既定60秒) は接続が残るため、
+# 続けて make status などを叩いてもそのまま通る。
+#
+# 鍵認証にしてあるなら、もともと聞かれないので、あってもなくても変わらない。
+# うまく動かないときは切れる:  make update SSH_MUX=0
+
+SSH_MUX      ?= 1
+SSH_MUX_PATH ?= ~/.ssh/kgc-mux-%C
+
+ifeq ($(SSH_MUX),1)
+SSH_MUX_OPTS := -o ControlMaster=auto -o ControlPath=$(SSH_MUX_PATH) -o ControlPersist=60
+else
+SSH_MUX_OPTS :=
+endif
+
 MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 SSH_TARGET   := $(SSH_USER)@$(HOST)
-SSH_FLAGS    := -p $(SSH_PORT) $(SSH_OPTS)
-SCP_FLAGS    := -q -P $(SSH_PORT) $(SSH_OPTS)
+SSH_FLAGS    := -p $(SSH_PORT) $(SSH_MUX_OPTS) $(SSH_OPTS)
+SCP_FLAGS    := -q -P $(SSH_PORT) $(SSH_MUX_OPTS) $(SSH_OPTS)
 
 # deploy/remote.sh を呼ぶ。
 #   $(1) サブコマンド
 #   $(2) root で走らせるなら sudo、読むだけなら空
+#
+# SSH 越しのときは、次の5回つなぐ。どれも別々の接続なので、鍵認証にしていないと
+# そのたびにパスワードを聞かれる。何をしているところなのかがわかるように、
+# ひとつずつ [n/5] を表示する (接続の多重化については上の SSH_MUX を見ること)。
+#
+#   1. 作業用のディレクトリを作る
+#   2. remote.sh を送る
+#   3. 設定を送る
+#   4. remote.sh を実行する      ← ここで sudo のパスワードも聞かれる
+#   5. 送ったものを片付ける
 #
 # 秘密 (SAKURA_AI_TOKEN など) は引数に置かない。600 の設定ファイルに書いて渡し、
 # remote.sh が読んだ直後に消す。ps に出ないのはこのため。
 define run
 	@set -eu; \
 	umask 077; \
+	if [ -t 1 ]; then B=$$'\033[1;34m'; G=$$'\033[1;32m'; O=$$'\033[0m'; else B=''; G=''; O=''; fi; \
+	step() { printf '%s==> %s%s\n' "$$B" "$$1" "$$O"; }; \
+	note() { printf '    %s\n' "$$1"; }; \
 	conf="$$(mktemp "$${TMPDIR:-/tmp}/kgc-deploy.XXXXXX")"; \
 	trap 'rm -f "$$conf"' EXIT HUP INT TERM; \
 	{ \
@@ -124,12 +163,43 @@ define run
 		printf "FOLLOW='%s'\n"             '$(FOLLOW)'; \
 	} > "$$conf"; \
 	if [ -n '$(HOST)' ]; then \
+		printf '\n'; \
+		step '$(1) を $(SSH_TARGET) に対して実行します'; \
+		note 'サーバーへは全部で5回つなぎます。いま何をしているかを [n/5] で出します。'; \
+		if [ -n '$(SSH_MUX_OPTS)' ]; then \
+			note '接続は使い回すので、SSH のパスワードを聞かれるのは [1/5] の1回だけです。'; \
+			[ -d "$$HOME/.ssh" ] || { mkdir -p "$$HOME/.ssh"; chmod 700 "$$HOME/.ssh"; }; \
+		else \
+			note 'SSH_MUX=0 なので接続を使い回しません。パスワード認証だと5回聞かれます。'; \
+		fi; \
+		printf '\n'; \
+		step '[1/5] 作業用のディレクトリを作る ($(STAGE))'; \
+		note 'サーバーの $(SSH_USER) のホームの下。中身は最後に消します。'; \
 		ssh $(SSH_FLAGS) $(SSH_TARGET) 'mkdir -p $(STAGE) && chmod 700 $(STAGE)'; \
+		step '[2/5] 手順の本体 deploy/remote.sh を送る'; \
+		note 'サーバーの上で実際に動くスクリプト。中身は docs/deploy.md と docs/update.md のとおり。'; \
 		scp $(SCP_FLAGS) '$(MAKEFILE_DIR)/deploy/remote.sh' $(SSH_TARGET):$(STAGE)/remote.sh; \
+		step '[3/5] 設定を送る (置き場所・ブランチ・トークンなど)'; \
+		note '秘密を引数に出さないための受け渡し。remote.sh が読んだ直後に消します。'; \
 		scp $(SCP_FLAGS) "$$conf" $(SSH_TARGET):$(STAGE)/conf; \
+		step '[4/5] サーバーの上で remote.sh $(1) を実行する'; \
+		if [ -n '$(2)' ]; then \
+			note 'root の作業があるので sudo で走らせます。ここで sudo のパスワードを聞かれます。'; \
+		else \
+			note '読むだけなので sudo は使いません。'; \
+		fi; \
+		note 'ここから先の表示は、サーバー側の remote.sh が出しているものです。'; \
 		ssh -t $(SSH_FLAGS) $(SSH_TARGET) '$(2) bash $(STAGE)/remote.sh $(1) $(STAGE)/conf'; \
+		step '[5/5] 送ったスクリプトと設定を片付ける'; \
 		ssh $(SSH_FLAGS) $(SSH_TARGET) 'rm -rf $(STAGE)'; \
+		printf '%s==> $(1) を終えました ($(SSH_TARGET))%s\n' "$$G" "$$O"; \
 	else \
+		printf '\n'; \
+		step '$(1) を、いま入っているこのマシンの上で実行します (HOST なし)'; \
+		if [ -n '$(2)' ]; then \
+			note 'root の作業があるので sudo で走らせます。パスワードを聞かれます。'; \
+		fi; \
+		note 'ここから先の表示は deploy/remote.sh が出しているものです。'; \
 		$(2) bash '$(MAKEFILE_DIR)/deploy/remote.sh' $(1) "$$conf"; \
 	fi
 endef
@@ -165,6 +235,10 @@ help:
 	@echo ''
 	@echo '  HOST を付けると SSH 越しに、付けないとその場で実行する。'
 	@echo '  サーバーの上でやるなら: cd $(APP_DIR) && sudo make update'
+	@echo ''
+	@echo '  SSH 越しのときは中で5回つなぐが、いま何をしているかを [n/5] で表示する。'
+	@echo '  接続は使い回すので、SSH のパスワードを聞かれるのは最初の1回だけ。'
+	@echo '  使い回したくないときは SSH_MUX=0 を付ける。'
 	@echo ''
 	@echo '  HOST・DOMAIN・秘密は手元の .env からも読む (DATA_DIR などは読まない)。'
 	@echo '  .env に書いておけば、引数なしで make install / make update と打てる。'
