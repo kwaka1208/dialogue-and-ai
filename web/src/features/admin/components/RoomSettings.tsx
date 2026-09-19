@@ -12,6 +12,7 @@ export function RoomSettings({ room, onSaved }: RoomSettingsProps) {
   const [name, setName] = useState(room.name);
   const [capacity, setCapacity] = useState(String(room.capacity));
   const [turnLimit, setTurnLimit] = useState(String(room.turnLimit));
+  const [aiMode, setAiMode] = useState(room.aiMode);
   const [replyMode, setReplyMode] = useState(room.replyMode);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,14 +22,16 @@ export function RoomSettings({ room, onSaved }: RoomSettingsProps) {
     setName(room.name);
     setCapacity(String(room.capacity));
     setTurnLimit(String(room.turnLimit));
+    setAiMode(room.aiMode);
     setReplyMode(room.replyMode);
     setError(null);
-  }, [room.id, room.name, room.capacity, room.turnLimit, room.replyMode]);
+  }, [room.id, room.name, room.capacity, room.turnLimit, room.aiMode, room.replyMode]);
 
   const changed =
     name !== room.name ||
     Number(capacity) !== room.capacity ||
     Number(turnLimit) !== room.turnLimit ||
+    aiMode !== room.aiMode ||
     replyMode !== room.replyMode;
 
   const handleSubmit = async (event: FormEvent): Promise<void> => {
@@ -41,6 +44,7 @@ export function RoomSettings({ room, onSaved }: RoomSettingsProps) {
         name,
         capacity: Number(capacity),
         turnLimit: Number(turnLimit),
+        aiMode,
         replyMode,
       });
       await onSaved();
@@ -94,16 +98,33 @@ export function RoomSettings({ room, onSaved }: RoomSettingsProps) {
       </div>
 
       <label className="field">
-        <span className="field-label">AIの返し方</span>
+        <span className="field-label">AIのモード</span>
         <select
           className="field-input"
-          value={replyMode}
-          onChange={(e) => setReplyMode(e.target.value === 'always' ? 'always' : 'mention')}
+          value={aiMode}
+          onChange={(e) => setAiMode(e.target.value === 'opinion' ? 'opinion' : 'chat')}
         >
-          <option value="mention">呼ばれたら返す</option>
-          <option value="always">毎回返す</option>
+          <option value="chat">会話モード</option>
+          <option value="opinion">意見モード</option>
         </select>
+        <span className="field-hint">
+          変えると、いま部屋にいる子の画面もボタンごと入れかわります。
+        </span>
       </label>
+
+      {aiMode === 'chat' && (
+        <label className="field">
+          <span className="field-label">AIの返し方</span>
+          <select
+            className="field-input"
+            value={replyMode}
+            onChange={(e) => setReplyMode(e.target.value === 'always' ? 'always' : 'mention')}
+          >
+            <option value="mention">呼ばれたら返す</option>
+            <option value="always">毎回返す</option>
+          </select>
+        </label>
+      )}
 
       {error && <p className="form-error">{error}</p>}
 

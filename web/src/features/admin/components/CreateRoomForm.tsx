@@ -15,6 +15,7 @@ export function CreateRoomForm({ defaults, onCreated }: CreateRoomFormProps) {
   const [capacity, setCapacity] = useState(String(defaults.capacity));
   const [turnLimit, setTurnLimit] = useState(String(defaults.turnLimit));
   const [expiresInHours, setExpiresInHours] = useState(String(defaults.expiresInHours));
+  const [aiMode, setAiMode] = useState(defaults.aiMode);
   const [replyMode, setReplyMode] = useState(defaults.replyMode);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -29,7 +30,9 @@ export function CreateRoomForm({ defaults, onCreated }: CreateRoomFormProps) {
         name,
         // 空欄なら合言葉なしで作る
         passcode: passcode === '' ? undefined : passcode,
-        replyMode,
+        aiMode,
+        // 意見モードでは使わない値なので送らない
+        replyMode: aiMode === 'chat' ? replyMode : undefined,
         capacity: Number(capacity),
         turnLimit: Number(turnLimit),
         expiresInHours: Number(expiresInHours),
@@ -132,16 +135,35 @@ export function CreateRoomForm({ defaults, onCreated }: CreateRoomFormProps) {
       </div>
 
       <label className="field">
-        <span className="field-label">AIの返し方</span>
+        <span className="field-label">AIのモード</span>
         <select
           className="field-input"
-          value={replyMode}
-          onChange={(e) => setReplyMode(e.target.value === 'always' ? 'always' : 'mention')}
+          value={aiMode}
+          onChange={(e) => setAiMode(e.target.value === 'opinion' ? 'opinion' : 'chat')}
         >
-          <option value="mention">呼ばれたら返す（@AI か「AIにきく」ボタン）</option>
-          <option value="always">毎回返す</option>
+          <option value="chat">会話モード（AIが子どもの話し相手になる）</option>
+          <option value="opinion">意見モード（AIは見ていて、頼まれたら意見を言う）</option>
         </select>
+        <span className="field-hint">
+          {aiMode === 'opinion'
+            ? '子どもの発言にAIは返事をしません。「AIに いけんを きく」を押したときだけ、そこまでのやり取りに意見を言います。'
+            : '子どもがAIに話しかけると返事をします。部屋を作ったあとでも変えられます。'}
+        </span>
       </label>
+
+      {aiMode === 'chat' && (
+        <label className="field">
+          <span className="field-label">AIの返し方</span>
+          <select
+            className="field-input"
+            value={replyMode}
+            onChange={(e) => setReplyMode(e.target.value === 'always' ? 'always' : 'mention')}
+          >
+            <option value="mention">呼ばれたら返す（@AI か「AIにきく」ボタン）</option>
+            <option value="always">毎回返す</option>
+          </select>
+        </label>
+      )}
 
       {error && <p className="form-error">{error}</p>}
 

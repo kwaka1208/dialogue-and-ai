@@ -1,4 +1,4 @@
-import { dateTimeText, remainingText, replyModeText } from '../format.ts';
+import { aiModeText, dateTimeText, remainingText, replyModeText } from '../format.ts';
 import type { RoomSummary } from '../types.ts';
 
 interface RoomListProps {
@@ -39,7 +39,8 @@ export function RoomList({ rooms, selectedId, onSelect, showOwner }: RoomListPro
               <span className="room-row-meta">
                 {remainingText(room.expiresAt)} ・ 在室 {room.onlineCount}/{room.capacity} ・ 発言{' '}
                 {room.messageCount} ・ AI {room.turnsUsed}/{room.turnLimit} ・{' '}
-                {replyModeText(room.replyMode)}
+                {aiModeText(room.aiMode)}
+                {room.aiMode === 'chat' && ` (${replyModeText(room.replyMode)})`}
               </span>
               <span className="room-row-meta">
                 作成 {dateTimeText(room.createdAt)}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as api from '../api.ts';
 import { useRoomDetail } from '../hooks/useRoomDetail.ts';
-import { dateTimeText, remainingText } from '../format.ts';
+import { aiModeText, dateTimeText, remainingText, replyModeText } from '../format.ts';
 import { RoomSettings } from './RoomSettings.tsx';
 import { ParticipantTable } from './ParticipantTable.tsx';
 import { MessageLog } from './MessageLog.tsx';
@@ -87,6 +87,13 @@ export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDe
         <div>
           <dt>発言</dt>
           <dd>{detail.messageCount} 件</dd>
+        </div>
+        <div>
+          <dt>AIのモード</dt>
+          <dd>
+            {aiModeText(room.aiMode)}
+            {room.aiMode === 'chat' && `（${replyModeText(room.replyMode)}）`}
+          </dd>
         </div>
         <div>
           <dt>AIの使用</dt>

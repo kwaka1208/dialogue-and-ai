@@ -24,3 +24,7 @@ export function remainingText(expiresAt: string, now = Date.now()): string {
 export function replyModeText(mode: 'mention' | 'always'): string {
   return mode === 'always' ? '毎回返す' : '呼ばれたら返す';
 }
+
+export function aiModeText(mode: 'chat' | 'opinion'): string {
+  return mode === 'opinion' ? '意見モード' : '会話モード';
+}

@@ -1,11 +1,12 @@
 /** server/src/routes/admin.ts が返す形に対応する */
-import type { Message, Participant, ReplyMode } from '../room/types.ts';
+import type { AiMode, Message, Participant, ReplyMode } from '../room/types.ts';
 
 export interface AdminRoom {
   id: string;
   /** 子どもがトップページで入れる6桁の数字 */
   code: string;
   name: string;
+  aiMode: AiMode;
   replyMode: ReplyMode;
   capacity: number;
   turnLimit: number;
@@ -76,6 +77,7 @@ export interface AdminSession {
     capacity: number;
     expiresInHours: number;
     turnLimit: number;
+    aiMode: AiMode;
     replyMode: ReplyMode;
   };
   rateLimits: {
@@ -87,6 +89,7 @@ export interface AdminSession {
 export interface CreateRoomInput {
   name: string;
   passcode?: string;
+  aiMode?: AiMode;
   replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
@@ -95,6 +98,7 @@ export interface CreateRoomInput {
 
 export interface UpdateRoomInput {
   name?: string;
+  aiMode?: AiMode;
   replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
