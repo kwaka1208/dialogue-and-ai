@@ -14,6 +14,11 @@ async function copyUrl(room: RoomSummary): Promise<void> {
   await navigator.clipboard.writeText(`${location.origin}${room.url}`).catch(() => undefined);
 }
 
+/** 部屋コードだけをコピーする。黒板に書いたり読み上げたりするとき用 */
+async function copyCode(room: RoomSummary): Promise<void> {
+  await navigator.clipboard.writeText(room.code).catch(() => undefined);
+}
+
 export function RoomList({ rooms, selectedId, onSelect, showOwner }: RoomListProps) {
   if (rooms.length === 0) {
     return <p className="admin-empty">まだ部屋がありません。</p>;
@@ -26,6 +31,7 @@ export function RoomList({ rooms, selectedId, onSelect, showOwner }: RoomListPro
           <div className={`room-row${room.id === selectedId ? ' is-selected' : ''}`}>
             <button className="room-row-main" type="button" onClick={() => onSelect(room.id)}>
               <span className="room-row-name">
+                <span className="room-code">{room.code}</span>
                 {room.name}
                 {room.hasPasscode && <span className="room-tag">合言葉</span>}
                 {room.closed && <span className="room-tag is-closed">終了</span>}
@@ -39,6 +45,14 @@ export function RoomList({ rooms, selectedId, onSelect, showOwner }: RoomListPro
                 作成 {dateTimeText(room.createdAt)}
                 {showOwner && ` ・ ${room.ownerEmail ?? '所有者なし'}`}
               </span>
+            </button>
+            <button
+              className="text-button"
+              type="button"
+              onClick={() => void copyCode(room)}
+              title="子どもに伝える6桁のコードをコピー"
+            >
+              コードをコピー
             </button>
             <button
               className="text-button"

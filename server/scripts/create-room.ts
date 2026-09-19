@@ -34,6 +34,7 @@ const room = createRoom({
 });
 
 console.log(`部屋を作りました: ${room.name}`);
+console.log(`  部屋コード: ${room.code}`);
 console.log(`  URL       : http://localhost:5173/r/${room.id}`);
 console.log(`  合言葉    : ${room.passcodeHash ? (flag('passcode') ?? '(設定あり)') : 'なし'}`);
 console.log(`  返答モード: ${room.replyMode}`);

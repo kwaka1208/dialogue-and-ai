@@ -3,6 +3,8 @@ import type { Message, Participant, ReplyMode } from '../room/types.ts';
 
 export interface AdminRoom {
   id: string;
+  /** 子どもがトップページで入れる6桁の数字 */
+  code: string;
   name: string;
   replyMode: ReplyMode;
   capacity: number;

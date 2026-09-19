@@ -111,6 +111,8 @@ export const config = {
   rateLimits: {
     aiTurnsPerMinute: 3,
     messagesPerMinute: 20,
+    // トップページのコード照会。総当たりで他人の部屋に当たるのを抑える (IPごと)
+    roomCodeLookupsPerMinute: 10,
   },
 } as const;
 

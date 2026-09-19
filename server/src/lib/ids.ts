@@ -1,4 +1,4 @@
-import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomInt, createHash, timingSafeEqual } from 'node:crypto';
 
 const BASE62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -16,6 +16,13 @@ export function randomId(length = 22): string {
     }
   }
   return out.join('');
+}
+
+/** 部屋コードのような、口で言える数字の並び。randomInt は偏りなく引いてくれる */
+export function randomDigits(length: number): string {
+  let out = '';
+  for (let i = 0; i < length; i += 1) out += String(randomInt(10));
+  return out;
 }
 
 /** 参加者トークンなど、URLに載せない秘密の値 */

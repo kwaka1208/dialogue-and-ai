@@ -8,8 +8,11 @@
  * DBの turn_limit / turns_used が持つ (repos/rooms.ts の consumeTurn)。
  */
 
-/** 制限の単位。同じ参加者でも用途ごとに別の枠で数える */
-export type Bucket = 'ai_turn' | 'message';
+/**
+ * 制限の単位。同じ相手でも用途ごとに別の枠で数える。
+ * room_code だけは入室前なので、参加者IDではなくクライアントのIPで数える。
+ */
+export type Bucket = 'ai_turn' | 'message' | 'room_code';
 
 interface Window {
   /** この窓の中で記録した時刻 (ミリ秒)。古いものは判定のたびに捨てる */
@@ -18,15 +21,15 @@ interface Window {
 
 const WINDOW_MS = 60_000;
 
-/** key は `${bucket}:${participantId}` */
+/** key は `${bucket}:${subject}` (subject は参加者ID、または入室前ならIP) */
 const windows = new Map<string, Window>();
 
 /** 使われなくなった枠を片づける間隔。捨て漏れでメモリが伸びないように */
 const SWEEP_INTERVAL_MS = 5 * 60_000;
 let lastSweep = 0;
 
-function keyOf(bucket: Bucket, participantId: string): string {
-  return `${bucket}:${participantId}`;
+function keyOf(bucket: Bucket, subject: string): string {
+  return `${bucket}:${subject}`;
 }
 
 /** 窓から出た時刻を捨てる。残った数がそのまま「直近1分の回数」になる */
@@ -53,13 +56,13 @@ function sweep(now: number): void {
  */
 export function consume(
   bucket: Bucket,
-  participantId: string,
+  subject: string,
   limitPerMinute: number,
   now = Date.now(),
 ): boolean {
   sweep(now);
 
-  const key = keyOf(bucket, participantId);
+  const key = keyOf(bucket, subject);
   let window = windows.get(key);
   if (!window) {
     window = { hits: [] };
@@ -76,10 +79,10 @@ export function consume(
 /** 次にまた送れるようになるまでの秒数。画面に「○秒まってね」と出すために使う */
 export function retryAfterSeconds(
   bucket: Bucket,
-  participantId: string,
+  subject: string,
   now = Date.now(),
 ): number {
-  const window = windows.get(keyOf(bucket, participantId));
+  const window = windows.get(keyOf(bucket, subject));
   const oldest = window?.hits[0];
   if (oldest === undefined) return 0;
   return Math.max(1, Math.ceil((oldest + WINDOW_MS - now) / 1000));

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { config, isAdminAuthConfigured, isAiConfigured } from './config.js';
 import { getDb, closeDb } from './db/index.js';
 import { purgeExpiredSessions } from './repos/admin-sessions.js';
+import { ensureRoomCodes } from './repos/rooms.js';
 import { abortAllRuns, hasActiveRuns } from './lib/ai-runs.js';
 import { closeAllConnections } from './lib/room-hub.js';
 import { roomsRoute } from './routes/rooms.js';
@@ -48,6 +49,9 @@ if (fs.existsSync(webDist)) {
 
 getDb();
 purgeExpiredSessions();
+// 6桁コードを足す前に作られた部屋にも採番する。2回目からは対象が無く、何もしない
+const numbered = ensureRoomCodes();
+if (numbered > 0) console.log(`${numbered} 個の部屋に部屋コードを採番しました`);
 
 const server = serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`BFF listening on http://localhost:${info.port}`);

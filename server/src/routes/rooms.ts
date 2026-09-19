@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
+import { getConnInfo } from '@hono/node-server/conninfo';
 import { streamSSE } from 'hono/streaming';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { config, isAiConfigured } from '../config.js';
-import { consumeTurn, getRoom } from '../repos/rooms.js';
+import { consumeTurn, findRoomByCode, getRoom } from '../repos/rooms.js';
 import {
   DuplicateNameError,
   countActive,
@@ -40,6 +41,7 @@ import { isPast, isoAfterHours } from '../lib/time.js';
 import { sha256, safeEqual } from '../lib/ids.js';
 import { participantAuth, participantCookieName, type ParticipantEnv } from '../middleware/participant.js';
 import type { Room, ServerEvent } from '../types.js';
+import type { Context } from 'hono';
 
 const HEARTBEAT_MS = 15_000;
 /** multipart の境界やヘッダーのぶん。Content-Length は本体より少し大きくなる */
@@ -63,7 +65,53 @@ const postMessageSchema = z.object({
   attachmentIds: z.array(z.string()).max(MAX_FILES_PER_MESSAGE).default([]),
 });
 
+const lookupSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/),
+});
+
+/**
+ * 数える相手を決める。入室前なのでIPで数えるしかない。
+ *
+ * Caddy も nginx も、受けたときの接続元を X-Forwarded-For の末尾に足す。
+ * だから末尾を見る。手前に何を書かれても、そこだけは詐称できない。
+ */
+function clientIp(c: Context): string {
+  const forwarded = c.req.header('x-forwarded-for');
+  if (forwarded) {
+    const hops = forwarded.split(',').map((hop) => hop.trim()).filter(Boolean);
+    const last = hops.at(-1);
+    if (last) return last;
+  }
+  return getConnInfo(c).remote.address ?? 'unknown';
+}
+
 export const roomsRoute = new Hono();
+
+/**
+ * トップページの入室。6桁のコードから部屋のIDを返すだけで、入室そのものはしない。
+ * 名前と合言葉は、このあとの入室画面 (/r/:id) で受ける。
+ *
+ * 当てずっぽうで他人の部屋を引けないように、IPごとに回数を絞る。
+ * /:id より先に置く (POST は衝突しないが、読む順として)。
+ */
+roomsRoute.post('/lookup', async (c) => {
+  const ip = clientIp(c);
+  if (!consume('room_code', ip, config.rateLimits.roomCodeLookupsPerMinute)) {
+    return c.json({ error: 'too_fast', retryAfter: retryAfterSeconds('room_code', ip) }, 429);
+  }
+
+  const parsed = lookupSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'invalid_code' }, 400);
+
+  const room = findRoomByCode(parsed.data.code);
+  // 「終わった部屋」と「無い部屋」は区別しない。区別すると、あるかないかを当てられる
+  if (!room) return c.json({ error: 'not_found' }, 404);
+
+  return c.json({ roomId: room.id, name: room.name, url: `/r/${room.id}` });
+});
 
 /** 入室画面が最初に叩く。部屋の名前と、合言葉が要るかどうかだけ返す */
 roomsRoute.get('/:id', (c) => {

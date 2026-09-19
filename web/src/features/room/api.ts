@@ -9,6 +9,14 @@ import type {
   RoomInfo,
 } from './types.ts';
 
+/** トップページのコード入力。部屋のIDを引くだけで、入室はまだしない */
+export function lookupRoom(code: string): Promise<{ roomId: string; name: string; url: string }> {
+  return apiFetch('/api/rooms/lookup', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
 export function roomInfo(roomId: string): Promise<RoomInfo> {
   return apiFetch<RoomInfo>(`/api/rooms/${roomId}`);
 }

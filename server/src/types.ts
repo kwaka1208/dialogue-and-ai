@@ -26,6 +26,8 @@ export interface AdminIdentity {
 
 export interface Room {
   id: string;
+  /** トップページで入れる6桁の数字 */
+  code: string;
   name: string;
   passcodeHash: string | null;
   replyMode: ReplyMode;

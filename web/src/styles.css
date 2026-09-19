@@ -150,6 +150,17 @@ body {
   color: var(--color-muted);
 }
 
+/* 部屋コードは1文字ずつ読む。大きめ・等幅・字間を広めに */
+.code-input {
+  font-size: 2rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.4em;
+  text-align: center;
+  min-height: 3.75rem;
+  /* letter-spacing のぶん右に寄るので、その半分を戻す */
+  text-indent: 0.4em;
+}
+
 /* ---- チャット画面 ---- */
 
 .chat-room {
@@ -810,6 +821,21 @@ body {
 .room-tag.is-closed {
   background: var(--color-border);
   color: var(--color-muted);
+}
+
+/* 一覧でも詳細でも、コードは数字として拾えるように等幅で出す */
+.room-code {
+  padding: 0.05rem 0.45rem;
+  border-radius: 6px;
+  background: var(--color-mine);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+}
+
+.room-code.is-large {
+  margin-right: 0.5rem;
+  font-size: 1rem;
 }
 
 /* ---- 部屋の詳細 ---- */

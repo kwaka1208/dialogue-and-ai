@@ -61,7 +61,10 @@ export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDe
   return (
     <div className="admin-card room-detail">
       <header className="room-detail-head">
-        <h2 className="admin-card-title">{room.name}</h2>
+        <h2 className="admin-card-title">
+          <span className="room-code is-large">{room.code}</span>
+          {room.name}
+        </h2>
         <code className="room-url">
           {location.origin}
           {detail.url}
@@ -94,6 +97,10 @@ export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDe
         <div>
           <dt>添付</dt>
           <dd>{detail.attachmentCount} 件</dd>
+        </div>
+        <div>
+          <dt>部屋コード</dt>
+          <dd>{room.code}</dd>
         </div>
         <div>
           <dt>合言葉</dt>
