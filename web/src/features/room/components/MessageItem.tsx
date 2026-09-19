@@ -1,5 +1,5 @@
 import { AttachmentList } from './AttachmentList.tsx';
-import type { Message } from '../types.ts';
+import type { AiMode, Message } from '../types.ts';
 
 interface MessageItemProps {
   message: Message;
@@ -7,6 +7,8 @@ interface MessageItemProps {
   isMine: boolean;
   /** AIがいま書いている最中のメッセージ */
   isStreaming: boolean;
+  /** 部屋のモード。AIの見出しがこれで変わる */
+  aiMode: AiMode;
 }
 
 function formatTime(iso: string): string {
@@ -19,12 +21,13 @@ function speakerMark(kind: Message['kind'], isMine: boolean): string {
   return isMine ? '🙂' : '🧒';
 }
 
-export function MessageItem({ message, roomId, isMine, isStreaming }: MessageItemProps) {
+export function MessageItem({ message, roomId, isMine, isStreaming, aiMode }: MessageItemProps) {
   if (message.kind === 'system') {
     return <li className="message message-system">{message.body}</li>;
   }
 
-  const speaker = message.kind === 'ai' ? 'AI' : (message.displayName ?? 'だれか');
+  const aiSpeaker = aiMode === 'opinion' ? 'AIの いけん' : 'AI';
+  const speaker = message.kind === 'ai' ? aiSpeaker : (message.displayName ?? 'だれか');
 
   // 最初のひとことが届くまでのあいだ、待たされている感じを減らす
   if (isStreaming && message.body === '') {

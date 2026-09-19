@@ -15,11 +15,22 @@ interface ChatRoomProps {
   onLeft: () => void;
 }
 
+/** 意見モードのボタンに添える説明。押せない理由があればそれを出す */
+function askButtonTitle(aiEnabled: boolean, aiBusy: boolean): string {
+  if (!aiEnabled) return 'いまは AIが おやすみちゅう';
+  if (aiBusy) return 'AIが いけんを かいているよ';
+  return 'ここまでの はなしについて AIの いけんを きく';
+}
+
 export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
   const { messages, participants, status, loadError, roomClosed, kicked, streamingId, aiError } =
     useRoomStream(room.id);
   const [sendError, setSendError] = useState<string | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
+  // 意見をたのんでから、受け付けられたかどうかが返るまで
+  const [asking, setAsking] = useState(false);
+
+  const opinionMode = room.aiMode === 'opinion';
 
   const handleSend = async (
     body: string,
@@ -30,11 +41,26 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
     setAiNotice(null);
     try {
       const { ai } = await api.sendMessage(room.id, { body, askAi, attachmentIds });
-      setAiNotice(aiNoticeText(ai));
+      setAiNotice(aiNoticeText(ai, room.aiMode));
       return true;
     } catch (error) {
       setSendError(errorText(error instanceof ApiError ? error.code : 'unknown'));
       return false;
+    }
+  };
+
+  /** 意見モードの「AIに いけんを きく」。発言は送らず、ここまでのやり取りを見てもらう */
+  const handleAskOpinion = async (): Promise<void> => {
+    setSendError(null);
+    setAiNotice(null);
+    setAsking(true);
+    try {
+      const { ai } = await api.askOpinion(room.id);
+      setAiNotice(aiNoticeText(ai, room.aiMode));
+    } catch (error) {
+      setSendError(errorText(error instanceof ApiError ? error.code : 'unknown'));
+    } finally {
+      setAsking(false);
     }
   };
 
@@ -90,6 +116,7 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
         messages={messages}
         myParticipantId={me.id}
         streamingId={streamingId}
+        aiMode={room.aiMode}
       />
 
       {sendError && (
@@ -102,9 +129,9 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
           {aiNotice}
         </p>
       )}
-      {aiError && aiErrorText(aiError) && (
+      {aiError && aiErrorText(aiError, room.aiMode) && (
         <p className="ai-notice" role="status">
-          {aiErrorText(aiError)}
+          {aiErrorText(aiError, room.aiMode)}
         </p>
       )}
 
@@ -114,9 +141,25 @@ export function ChatRoom({ room, me, onLeft }: ChatRoomProps) {
         </button>
       )}
 
+      {opinionMode && (
+        <div className="ai-ask">
+          <button
+            className="ai-button"
+            type="button"
+            onClick={() => void handleAskOpinion()}
+            disabled={!room.aiAvailable || streamingId !== null || asking || roomClosed}
+            title={askButtonTitle(room.aiAvailable, streamingId !== null)}
+          >
+            🤖 AIに いけんを きく
+          </button>
+          <p className="ai-ask-hint">ここまでの みんなの はなしを 見て、AIが いけんを いいます</p>
+        </div>
+      )}
+
       <Composer
         roomId={room.id}
         onSend={handleSend}
+        showAiButton={!opinionMode}
         aiEnabled={room.aiAvailable}
         aiBusy={streamingId !== null}
         disabled={roomClosed}

@@ -10,6 +10,11 @@ interface ComposerProps {
   roomId: string;
   /** 送れたら true。false のときは書いたものを消さずに残す */
   onSend: (body: string, askAi: boolean, attachmentIds: string[]) => Promise<boolean>;
+  /**
+   * 入力欄に「AIに きく」を出すか。
+   * 会話モードの部屋だけ true。意見モードではタイムラインの下のボタンから頼む
+   */
+  showAiButton: boolean;
   /** サーバーにAIの設定があるか */
   aiEnabled: boolean;
   /** いまAIが誰かに返事を書いている最中か */
@@ -23,7 +28,14 @@ function aiButtonTitle(aiEnabled: boolean, aiBusy: boolean): string {
   return 'AIに こたえてもらう';
 }
 
-export function Composer({ roomId, onSend, aiEnabled, aiBusy, disabled }: ComposerProps) {
+export function Composer({
+  roomId,
+  onSend,
+  showAiButton,
+  aiEnabled,
+  aiBusy,
+  disabled,
+}: ComposerProps) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   // アップロードずみで、まだ送っていない添付
@@ -103,7 +115,10 @@ export function Composer({ roomId, onSend, aiEnabled, aiBusy, disabled }: Compos
   };
 
   return (
-    <form className="composer" onSubmit={handleSubmit}>
+    <form
+      className={showAiButton ? 'composer' : 'composer composer-no-ai'}
+      onSubmit={handleSubmit}
+    >
       {pending.length > 0 && (
         <ul className="pending-list">
           {pending.map((attachment) => (
@@ -172,17 +187,19 @@ export function Composer({ roomId, onSend, aiEnabled, aiBusy, disabled }: Compos
           {uploading ? 'おくってます…' : '📎 ファイル'}
         </button>
         <button className="primary-button" type="submit" disabled={!canSend}>
-          いう
+          {showAiButton ? 'いう' : 'おくる'}
         </button>
-        <button
-          className="ai-button"
-          type="button"
-          onClick={() => void send(true)}
-          disabled={!canSend || !aiEnabled || aiBusy}
-          title={aiButtonTitle(aiEnabled, aiBusy)}
-        >
-          🤖 AIに きく
-        </button>
+        {showAiButton && (
+          <button
+            className="ai-button"
+            type="button"
+            onClick={() => void send(true)}
+            disabled={!canSend || !aiEnabled || aiBusy}
+            title={aiButtonTitle(aiEnabled, aiBusy)}
+          >
+            🤖 AIに きく
+          </button>
+        )}
       </div>
     </form>
   );
