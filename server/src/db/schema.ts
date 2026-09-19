@@ -26,9 +26,11 @@ CREATE INDEX IF NOT EXISTS idx_admin_sessions_account ON admin_sessions(account_
 
 CREATE TABLE IF NOT EXISTS rooms (
   id            TEXT PRIMARY KEY,          -- 22文字のランダム文字列 (base62)
+  code          TEXT,                      -- トップページで入れる6桁の数字。期限内の部屋の中で重複しない
   name          TEXT NOT NULL,
   passcode_hash TEXT,                      -- NULL可。設定時は4桁の合言葉のハッシュ
-  reply_mode    TEXT NOT NULL DEFAULT 'mention',  -- 使わなくなった列。古いDBとの互換のために残す
+  ai_mode       TEXT NOT NULL DEFAULT 'chat',     -- 'chat' | 'opinion'
+  reply_mode    TEXT NOT NULL,             -- 'mention' | 'always' (ai_mode='chat' のときだけ効く)
   capacity      INTEGER NOT NULL,
   turn_limit    INTEGER NOT NULL,
   turns_used    INTEGER NOT NULL DEFAULT 0,

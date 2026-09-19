@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
+import { getConnInfo } from '@hono/node-server/conninfo';
 import { streamSSE } from 'hono/streaming';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { config, isAiConfigured } from '../config.js';
-import { consumeTurn, getRoom } from '../repos/rooms.js';
+import { consumeTurn, findRoomByCode, getRoom } from '../repos/rooms.js';
 import {
   DuplicateNameError,
   countActive,
@@ -24,6 +25,7 @@ import {
 import { startAiResponse, type AiSkipReason } from '../services/ai-responder.js';
 import { abortRun, activeRun } from '../lib/ai-runs.js';
 import { consume, retryAfterSeconds } from '../lib/rate-limit.js';
+import { AI_HISTORY_LIMIT, mentionsAi } from '../lib/prompt.js';
 import { containsNgWord } from '../lib/word-filter.js';
 import { addConnection, isConnected, presenceOf, publish } from '../lib/room-hub.js';
 import { EventQueue } from '../lib/event-queue.js';
@@ -35,11 +37,11 @@ import {
   removeStoredFile,
   storeFile,
 } from '../lib/uploads.js';
-import { AI_HISTORY_LIMIT } from '../lib/prompt.js';
 import { isPast, isoAfterHours } from '../lib/time.js';
 import { sha256, safeEqual } from '../lib/ids.js';
 import { participantAuth, participantCookieName, type ParticipantEnv } from '../middleware/participant.js';
 import type { Message, Participant, Room, ServerEvent } from '../types.js';
+import type { Context } from 'hono';
 
 const HEARTBEAT_MS = 15_000;
 /** multipart の境界やヘッダーのぶん。Content-Length は本体より少し大きくなる */
@@ -59,10 +61,57 @@ const joinSchema = z.object({
 const postMessageSchema = z.object({
   // 添付だけを送ることもできるので、本文は空でもよい
   body: z.string().trim().max(2000),
+  askAi: z.boolean().default(false),
   attachmentIds: z.array(z.string()).max(MAX_FILES_PER_MESSAGE).default([]),
 });
 
+const lookupSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/),
+});
+
+/**
+ * 数える相手を決める。入室前なのでIPで数えるしかない。
+ *
+ * Caddy も nginx も、受けたときの接続元を X-Forwarded-For の末尾に足す。
+ * だから末尾を見る。手前に何を書かれても、そこだけは詐称できない。
+ */
+function clientIp(c: Context): string {
+  const forwarded = c.req.header('x-forwarded-for');
+  if (forwarded) {
+    const hops = forwarded.split(',').map((hop) => hop.trim()).filter(Boolean);
+    const last = hops.at(-1);
+    if (last) return last;
+  }
+  return getConnInfo(c).remote.address ?? 'unknown';
+}
+
 export const roomsRoute = new Hono();
+
+/**
+ * トップページの入室。6桁のコードから部屋のIDを返すだけで、入室そのものはしない。
+ * 名前と合言葉は、このあとの入室画面 (/r/:id) で受ける。
+ *
+ * 当てずっぽうで他人の部屋を引けないように、IPごとに回数を絞る。
+ * /:id より先に置く (POST は衝突しないが、読む順として)。
+ */
+roomsRoute.post('/lookup', async (c) => {
+  const ip = clientIp(c);
+  if (!consume('room_code', ip, config.rateLimits.roomCodeLookupsPerMinute)) {
+    return c.json({ error: 'too_fast', retryAfter: retryAfterSeconds('room_code', ip) }, 429);
+  }
+
+  const parsed = lookupSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'invalid_code' }, 400);
+
+  const room = findRoomByCode(parsed.data.code);
+  // 「終わった部屋」と「無い部屋」は区別しない。区別すると、あるかないかを当てられる
+  if (!room) return c.json({ error: 'not_found' }, 404);
+
+  return c.json({ roomId: room.id, name: room.name, url: `/r/${room.id}` });
+});
 
 /** 入室画面が最初に叩く。部屋の名前と、合言葉が要るかどうかだけ返す */
 roomsRoute.get('/:id', (c) => {
@@ -73,6 +122,8 @@ roomsRoute.get('/:id', (c) => {
     id: room.id,
     name: room.name,
     requiresPasscode: room.passcodeHash !== null,
+    aiMode: room.aiMode,
+    replyMode: room.replyMode,
     aiAvailable: isAiConfigured(),
     closed: isPast(room.expiresAt),
     expiresAt: room.expiresAt,
@@ -126,7 +177,13 @@ roomsRoute.post('/:id/join', async (c) => {
 });
 
 /** リロード後に入室済みかどうかを確かめる。cookie が生きていれば自分の情報が返る */
-roomsRoute.get('/:id/me', participantAuth, (c) => c.json({ participant: c.get('participant') }));
+roomsRoute.get('/:id/me', participantAuth, (c) =>
+  c.json({
+    participant: c.get('participant'),
+    aiMode: c.get('room').aiMode,
+    replyMode: c.get('room').replyMode,
+  }),
+);
 
 roomsRoute.get('/:id/messages', participantAuth, (c) => {
   const room = c.get('room');
@@ -143,7 +200,7 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
   const parsed = postMessageSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: 'invalid_body' }, 400);
 
-  const { body, attachmentIds } = parsed.data;
+  const { body, askAi, attachmentIds } = parsed.data;
   if (body === '' && attachmentIds.length === 0) return c.json({ error: 'invalid_body' }, 400);
 
   // 連投でタイムラインが埋まるのを防ぐ。普通に打つぶんには当たらない上限
@@ -154,7 +211,7 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
     );
   }
 
-  // 引っかかっても発言はそのまま部屋に出す。AIに意見を求められないことと、ログの印だけが変わる
+  // 引っかかっても発言はそのまま部屋に出す。AIが動かないことと、ログの印だけが変わる
   const flagged = containsNgWord(body);
 
   const created = insertMessage({
@@ -171,18 +228,21 @@ roomsRoute.post('/:id/messages', participantAuth, async (c) => {
 
   publish(room.id, { type: 'message', message: forRoom(message) });
 
-  return c.json({ message: forRoom(message) });
+  return c.json({
+    message: forRoom(message),
+    ai: triggerAi(room, participant.id, body, askAi, flagged),
+  });
 });
 
 /**
- * 「AIに いけんを きく」ボタン。
- * そこまでのやり取りについて、AIに意見を言ってもらう。発言は伴わない。
+ * 「AIに いけんを きく」ボタン。意見モードの部屋だけが使う。
+ * 会話モードの部屋では、AIは発言に対して返事をするので、この入口は要らない。
  */
 roomsRoute.post('/:id/ai-opinion', participantAuth, (c) => {
   const room = c.get('room');
-  const participant = c.get('participant');
+  if (room.aiMode !== 'opinion') return c.json({ error: 'not_opinion_room' }, 409);
 
-  return c.json({ ai: requestOpinion(room, participant) });
+  return c.json({ ai: requestOpinion(room, c.get('participant')) });
 });
 
 /** 送られないまま残った添付を、実体ごと片づける */
@@ -286,10 +346,30 @@ roomsRoute.get('/:id/attachments/:attachmentId', participantAuth, async (c) => {
 });
 
 /**
- * 意見を求められるかどうかを判定し、生成を始める。
+ * 会話モードの部屋で、呼びかけかどうかを判定し、応答を始める。
+ * 発言そのものは保存ずみなので、AIが動かなくても部屋の会話は続く。
  *
- * 断る判定は、数を消費しないものから先に並べる。
- * 「混んでいて断られた」ぶんで参加者の枠や部屋のターンが減らないようにするため。
+ * 意見モードの部屋では、発言でAIが動くことはない (ボタンを押したときだけ)。
+ */
+function triggerAi(
+  room: Room,
+  participantId: string,
+  body: string,
+  askAi: boolean,
+  flagged: boolean,
+): 'started' | 'none' | AiSkipReason {
+  if (room.aiMode === 'opinion') return 'none';
+
+  const wanted = askAi || mentionsAi(body) || room.replyMode === 'always';
+  if (!wanted) return 'none';
+  if (flagged) return 'filtered';
+
+  return runAi(room, participantId);
+}
+
+/**
+ * 意見モードの「AIに いけんを きく」。
+ * そこまでのやり取りについて、AIに意見を言ってもらう。発言は伴わない。
  */
 function requestOpinion(room: Room, participant: Participant): 'started' | AiSkipReason {
   const recent = listMessages(room.id, AI_HISTORY_LIMIT);
@@ -297,24 +377,17 @@ function requestOpinion(room: Room, participant: Participant): 'started' | AiSki
   if (!recent.some((message) => message.kind === 'user')) return 'no_messages';
   // 前回の意見より後に印の付いた発言があれば、そこには触れさせない
   if (sinceLastOpinion(recent).some((message) => message.flagged)) return 'filtered';
-  if (!isAiConfigured()) return 'unavailable';
-  if (activeRun(room.id)) return 'busy';
-  if (!consume('ai_turn', participant.id, config.rateLimits.aiTurnsPerMinute)) return 'rate_limited';
-  if (!consumeTurn(room.id)) return 'turn_limit';
 
   // 誰が意見を求めたかは、部屋の全員に見えるようにしておく。
-  // 意見の本体より先に入れないと、タイムラインで意見のあとに並んでしまう
-  const notice = insertMessage({
-    roomId: room.id,
-    kind: 'system',
-    body: `${participant.displayName} さんが AIに いけんを ききました`,
+  // 断られたときに出しても困るので、受け付けが決まってから出す
+  return runAi(room, participant.id, () => {
+    const notice = insertMessage({
+      roomId: room.id,
+      kind: 'system',
+      body: `${participant.displayName} さんが AIに いけんを ききました`,
+    });
+    publish(room.id, { type: 'message', message: forRoom(notice) });
   });
-  publish(room.id, { type: 'message', message: forRoom(notice) });
-
-  // ここまで来ても、ほぼ同時のボタンに先を越されることはありうる
-  if (!startAiResponse(room.id)) return 'busy';
-
-  return 'started';
 }
 
 /** 直近の履歴のうち、いちばん新しいAIの意見より後のぶん。無ければ全部 */
@@ -323,6 +396,33 @@ function sinceLastOpinion(recent: Message[]): Message[] {
     if (recent[index]!.kind === 'ai') return recent.slice(index + 1);
   }
   return recent;
+}
+
+/**
+ * 受け付けられるかを確かめて、生成を始める。両モードで共通。
+ *
+ * 断る判定は、数を消費しないものから先に並べる。
+ * 「混んでいて断られた」ぶんで参加者の枠や部屋のターンが減らないようにするため。
+ *
+ * beforeStart は、受け付けが決まってから生成に入るまでのあいだに差し込む処理。
+ * 意見モードが「だれが意見を求めたか」のお知らせを、意見の本体より前に置くために使う。
+ */
+function runAi(
+  room: Room,
+  participantId: string,
+  beforeStart?: () => void,
+): 'started' | AiSkipReason {
+  if (!isAiConfigured()) return 'unavailable';
+  if (activeRun(room.id)) return 'busy';
+  if (!consume('ai_turn', participantId, config.rateLimits.aiTurnsPerMinute)) return 'rate_limited';
+  if (!consumeTurn(room.id)) return 'turn_limit';
+
+  beforeStart?.();
+
+  // ここまで来ても、ほぼ同時の呼びかけで先を越されることはありうる
+  if (!startAiResponse(room.id, room.aiMode)) return 'busy';
+
+  return 'started';
 }
 
 /** 「とめる」ボタン。生成中のAIの応答を打ち切る */

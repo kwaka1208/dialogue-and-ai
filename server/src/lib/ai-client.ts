@@ -34,12 +34,17 @@ interface StreamChunk {
 /**
  * ストリーミングで応答を受け取り、本文の差分を順に返す。
  * signal で中断でき、それとは別に config.ai.timeoutMs で打ち切る。
+ *
+ * modelOverride は、部屋のモードごとにモデルを変えるためのもの (意見モードなど)。
+ * 省略すれば SAKURA_AI_MODEL を使う。
  */
 export async function* streamChatCompletion(
   messages: ChatMessage[],
   signal?: AbortSignal,
+  modelOverride?: string,
 ): AsyncGenerator<string> {
-  const { token, model, baseUrl, timeoutMs } = config.ai;
+  const { token, baseUrl, timeoutMs } = config.ai;
+  const model = modelOverride ?? config.ai.model;
   if (!token || !model) {
     throw new AiEngineError('SAKURA_AI_TOKEN / SAKURA_AI_MODEL が未設定です');
   }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as api from '../api.ts';
 import { useRoomDetail } from '../hooks/useRoomDetail.ts';
-import { dateTimeText, remainingText } from '../format.ts';
+import { aiModeText, dateTimeText, remainingText, replyModeText } from '../format.ts';
 import { RoomSettings } from './RoomSettings.tsx';
 import { ParticipantTable } from './ParticipantTable.tsx';
 import { MessageLog } from './MessageLog.tsx';
@@ -61,7 +61,10 @@ export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDe
   return (
     <div className="admin-card room-detail">
       <header className="room-detail-head">
-        <h2 className="admin-card-title">{room.name}</h2>
+        <h2 className="admin-card-title">
+          <span className="room-code is-large">{room.code}</span>
+          {room.name}
+        </h2>
         <code className="room-url">
           {location.origin}
           {detail.url}
@@ -86,6 +89,13 @@ export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDe
           <dd>{detail.messageCount} 件</dd>
         </div>
         <div>
+          <dt>AIのモード</dt>
+          <dd>
+            {aiModeText(room.aiMode)}
+            {room.aiMode === 'chat' && `（${replyModeText(room.replyMode)}）`}
+          </dd>
+        </div>
+        <div>
           <dt>AIの使用</dt>
           <dd>
             {room.turnsUsed} / {room.turnLimit} 回
@@ -94,6 +104,10 @@ export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDe
         <div>
           <dt>添付</dt>
           <dd>{detail.attachmentCount} 件</dd>
+        </div>
+        <div>
+          <dt>部屋コード</dt>
+          <dd>{room.code}</dd>
         </div>
         <div>
           <dt>合言葉</dt>

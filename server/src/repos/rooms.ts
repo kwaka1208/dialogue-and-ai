@@ -1,13 +1,16 @@
 import { getDb } from '../db/index.js';
-import { randomId, sha256 } from '../lib/ids.js';
+import { randomId, randomDigits, sha256 } from '../lib/ids.js';
 import { isoAfterHours, nowIso } from '../lib/time.js';
 import { config } from '../config.js';
-import type { Room } from '../types.js';
+import type { AiMode, ReplyMode, Room } from '../types.js';
 
 interface RoomRow {
   id: string;
+  code: string | null;
   name: string;
   passcode_hash: string | null;
+  ai_mode: string;
+  reply_mode: string;
   capacity: number;
   turn_limit: number;
   turns_used: number;
@@ -20,8 +23,12 @@ interface RoomRow {
 function toRoom(row: RoomRow): Room {
   return {
     id: row.id,
+    // 起動時の採番 (ensureRoomCodes) で埋まる。空になるのは採番前の一瞬だけ
+    code: row.code ?? '',
     name: row.name,
     passcodeHash: row.passcode_hash,
+    aiMode: row.ai_mode === 'opinion' ? 'opinion' : 'chat',
+    replyMode: row.reply_mode === 'always' ? 'always' : 'mention',
     capacity: row.capacity,
     turnLimit: row.turn_limit,
     turnsUsed: row.turns_used,
@@ -35,6 +42,8 @@ function toRoom(row: RoomRow): Room {
 export interface CreateRoomInput {
   name: string;
   passcode?: string | null;
+  aiMode?: AiMode;
+  replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
   expiresInHours?: number;
@@ -46,8 +55,11 @@ export function createRoom(input: CreateRoomInput): Room {
   const defaults = config.roomDefaults;
   const room: Room = {
     id: randomId(22),
+    code: issueCode(),
     name: input.name,
     passcodeHash: input.passcode ? sha256(input.passcode) : null,
+    aiMode: input.aiMode ?? defaults.aiMode,
+    replyMode: input.replyMode ?? defaults.replyMode,
     capacity: input.capacity ?? defaults.capacity,
     turnLimit: input.turnLimit ?? defaults.turnLimit,
     turnsUsed: 0,
@@ -57,15 +69,72 @@ export function createRoom(input: CreateRoomInput): Room {
     createdAt: nowIso(),
   };
 
-  // reply_mode は使わなくなった列。古いDBに NOT NULL で残っているので固定値を入れる
   getDb()
     .prepare(
-      `INSERT INTO rooms (id, name, passcode_hash, reply_mode, capacity, turn_limit, turns_used, expires_at, created_by, created_at)
-       VALUES (@id, @name, @passcodeHash, 'mention', @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
+      `INSERT INTO rooms (id, code, name, passcode_hash, ai_mode, reply_mode, capacity, turn_limit, turns_used, expires_at, created_by, created_at)
+       VALUES (@id, @code, @name, @passcodeHash, @aiMode, @replyMode, @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
     )
     .run(room);
 
   return room;
+}
+
+/**
+ * 6桁コードの採番。
+ *
+ * 「いま入れる部屋」(未削除かつ期限内) の中で重なっていなければよい。
+ * 終わった部屋のコードは、またどこかの部屋で使われる。
+ *
+ * 先頭が 0 のコードは作らない。口頭で伝えるときに 0 が落ちて取り違える。
+ */
+function issueCode(): string {
+  const db = getDb();
+  const taken = db.prepare<[string, string], { code: string }>(
+    'SELECT code FROM rooms WHERE code = ? AND deleted_at IS NULL AND expires_at > ?',
+  );
+
+  // 同時に開いている部屋は多くても数十。数回引き直せばまず当たる
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const candidate = randomDigits(6);
+    if (candidate.startsWith('0')) continue;
+    if (!taken.get(candidate, nowIso())) return candidate;
+  }
+
+  throw new Error('部屋コードを採番できませんでした。期限内の部屋が多すぎます。');
+}
+
+/**
+ * コードから部屋を引く。トップページの入室がこれを使う。
+ * 終わった部屋はコードでは引けない (URLを知っていれば「おわりました」の画面までは出る)。
+ */
+export function findRoomByCode(code: string): Room | null {
+  const row = getDb()
+    .prepare<[string, string], RoomRow>(
+      `SELECT * FROM rooms
+       WHERE code = ? AND deleted_at IS NULL AND expires_at > ?
+       ORDER BY created_at DESC
+       LIMIT 1`,
+    )
+    .get(code, nowIso());
+  return row ? toRoom(row) : null;
+}
+
+/**
+ * コードを持たない既存の部屋に採番する。起動時に一度だけ呼ぶ。
+ * 6桁コードを足す前に作られた部屋も、トップページから入れるようにするため。
+ */
+export function ensureRoomCodes(): number {
+  const db = getDb();
+  const rows = db
+    .prepare<[], { id: string }>('SELECT id FROM rooms WHERE code IS NULL AND deleted_at IS NULL')
+    .all();
+
+  const update = db.prepare('UPDATE rooms SET code = ? WHERE id = ?');
+  for (const row of rows) {
+    update.run(issueCode(), row.id);
+  }
+
+  return rows.length;
 }
 
 /** 論理削除ずみの部屋は「無い」ものとして扱う */
@@ -106,6 +175,8 @@ export function softDeleteRoom(id: string): boolean {
 
 export interface UpdateRoomInput {
   name?: string;
+  aiMode?: AiMode;
+  replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
 }
@@ -117,6 +188,8 @@ export interface UpdateRoomInput {
 export function updateRoom(id: string, input: UpdateRoomInput): Room | null {
   const columns: Record<keyof UpdateRoomInput, string> = {
     name: 'name',
+    aiMode: 'ai_mode',
+    replyMode: 'reply_mode',
     capacity: 'capacity',
     turnLimit: 'turn_limit',
   };

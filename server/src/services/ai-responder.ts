@@ -1,8 +1,11 @@
 /**
- * 部屋の履歴からリクエストを組み立て、AIの意見を部屋の全員に流す。
+ * 部屋の履歴からリクエストを組み立て、AIの応答を部屋の全員に流す。
  *
- * 意見は「空のメッセージを1件つくる → 差分を流す → 本文を確定させる」の順で進む。
+ * 応答は「空のメッセージを1件つくる → 差分を流す → 本文を確定させる」の順で進む。
  * 途中で入室した子にも同じものが見えるよう、進行中の本文は ai-runs が持つ。
+ *
+ * 部屋のモード (会話 / 意見) で変わるのは、組み立てるリクエストと、
+ * 失敗したときに部屋へ出す文言だけ。流し方そのものは同じ。
  */
 import {
   forRoom,
@@ -16,24 +19,27 @@ import { AI_HISTORY_LIMIT, buildChatMessages, stripSpeakerPrefix } from '../lib/
 import { createPlainTextFilter } from '../lib/plain-text.js';
 import { startRun, endRun, type AiRun } from '../lib/ai-runs.js';
 import { publish } from '../lib/room-hub.js';
+import { config } from '../config.js';
 import { buildAttachmentPayloads } from './attachment-context.js';
-import type { Message } from '../types.js';
+import type { AiMode, Message } from '../types.js';
 
-/** 意見を受け付けなかった理由。フロントで子ども向けの文言に直す */
+/**
+ * AIを動かせなかった理由。フロントで子ども向けの文言に直す。
+ * no_messages は意見モードだけで起きる (まだ誰も話しておらず、意見の材料が無い)。
+ */
 export type AiSkipReason =
   | 'busy'
   | 'unavailable'
   | 'turn_limit'
   | 'rate_limited'
   | 'filtered'
-  /** まだ誰も発言していない。意見の材料が無い */
   | 'no_messages';
 
 /**
- * 意見の生成を開始する。開始できたら true。
+ * 応答を開始する。開始できたら true。
  * 生成そのものは待たずに進むので、呼び出し側は POST の応答をすぐ返せる。
  */
-export function startAiResponse(roomId: string): boolean {
+export function startAiResponse(roomId: string, mode: AiMode): boolean {
   // 履歴は空のプレースホルダを作る前に読む。自分自身を履歴に含めないため
   const history = listMessages(roomId, AI_HISTORY_LIMIT);
   const placeholder = insertMessage({ roomId, kind: 'ai', body: '' });
@@ -45,7 +51,7 @@ export function startAiResponse(roomId: string): boolean {
   }
 
   publish(roomId, { type: 'ai_start', messageId: run.messageId });
-  void generate(roomId, run, history);
+  void generate(roomId, run, history, mode);
   return true;
 }
 
@@ -56,6 +62,7 @@ async function generate(
   roomId: string,
   run: AiRun,
   history: Message[],
+  mode: AiMode,
 ): Promise<void> {
   // 先頭の「なまえ:」を落とすため、最初だけ少し溜めてから流しはじめる
   let lead = '';
@@ -90,9 +97,11 @@ async function generate(
   try {
     // 添付の読み込み (画像の base64 化) はここで一度だけ
     const attachments = await buildAttachmentPayloads(history);
-    const request = buildChatMessages(history, attachments);
+    const request = buildChatMessages(history, attachments, mode);
+    // 意見モードだけ別のモデルを指定できる。未設定なら既定のモデルに落ちる
+    const model = mode === 'opinion' ? config.ai.opinionModel : config.ai.model;
 
-    for await (const delta of streamChatCompletion(request, run.controller.signal)) {
+    for await (const delta of streamChatCompletion(request, run.controller.signal, model)) {
       if (!leadFlushed) {
         lead += delta;
         // 改行が来たら1行目は出揃っている。判定を待つ理由はもうない
@@ -111,7 +120,7 @@ async function generate(
       finish(roomId, run);
       return;
     }
-    fail(roomId, run, error);
+    fail(roomId, run, error, mode);
   } finally {
     endRun(roomId, run);
   }
@@ -135,11 +144,11 @@ function finish(roomId: string, run: AiRun): void {
 }
 
 /** 詳細はサーバーログへ。子どもの画面には「いま話せないみたい」だけ出す */
-function fail(roomId: string, run: AiRun, error: unknown): void {
+function fail(roomId: string, run: AiRun, error: unknown, mode: AiMode): void {
   const detail = error instanceof Error ? error.message : String(error);
   const timedOut = error instanceof Error && error.name === 'TimeoutError';
   console.error(
-    `[ai] 部屋 ${roomId} の意見の生成に失敗しました (${error instanceof AiEngineError ? `status=${error.status ?? '-'}` : error instanceof Error ? error.name : 'unknown'}): ${detail}`,
+    `[ai] 部屋 ${roomId} の${mode === 'opinion' ? '意見の生成' : '応答'}に失敗しました (${error instanceof AiEngineError ? `status=${error.status ?? '-'}` : error instanceof Error ? error.name : 'unknown'}): ${detail}`,
   );
 
   deleteMessage(run.messageId);
@@ -153,9 +162,19 @@ function fail(roomId: string, run: AiRun, error: unknown): void {
   const notice = insertMessage({
     roomId,
     kind: 'system',
-    body: timedOut
-      ? 'AIの いけんが おそいので やめました。もういちど きいてみてね'
-      : 'いま AIに いけんを きけないみたい。すこし してから もういちど きいてね',
+    body: failureNotice(mode, timedOut),
   });
   publish(roomId, { type: 'message', message: forRoom(notice) });
+}
+
+/** 部屋の全員に出すお知らせ。モードによって「おへんじ」と「いけん」を言い分ける */
+function failureNotice(mode: AiMode, timedOut: boolean): string {
+  if (mode === 'opinion') {
+    return timedOut
+      ? 'AIの いけんが おそいので やめました。もういちど きいてみてね'
+      : 'いま AIに いけんを きけないみたい。すこし してから もういちど きいてね';
+  }
+  return timedOut
+    ? 'AIの おへんじが おそいので やめました。もういちど きいてみてね'
+    : 'いま AIと おはなし できないみたい。すこし してから もういちど きいてね';
 }

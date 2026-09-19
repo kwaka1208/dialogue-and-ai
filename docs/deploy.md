@@ -152,7 +152,7 @@ Caddy と nginx、どちらの設定例も `deploy/` に入れてある。新し
 
 どちらでも、押さえるところは同じ2つ。
 
-- **SSEをバッファさせない** — 溜めて送られると、AIの意見がまとめて一気に出る
+- **SSEをバッファさせない** — 溜めて送られると、AIの返事がまとめて一気に出る
 - **アップロードのサイズ上限を上げる** — 添付は1ファイル10MBまで。nginx の既定（1MB）だと 413 になる
 
 ### Caddy
@@ -249,12 +249,12 @@ curl -s https://kids.example.com/api/health
 
 1. 名前と合言葉で入れるか
 2. 2人で入って、お互いの発言がすぐ出るか（SSEが通っている）
-3. 「AIに いけんを きく」で意見が**少しずつ**出るか（まとめて一気に出るならバッファされている）
+3. 「AIにきく」で返事が**少しずつ**出るか（まとめて一気に出るならバッファされている）
 
 3がまとめて出たら、Webサーバー側の設定を見直す。Caddy なら `flush_interval -1`、
 nginx なら `proxy_read_timeout` と `Connection ''` のあたり。
 
-写真を1枚送って、AIの意見がその中身に触れれば添付も通っている。
+写真を1枚送って、AIがその中身に触れて返せば添付も通っている。
 
 ---
 
@@ -276,7 +276,7 @@ sudo systemctl restart kids-group-chat
 
 再起動のとき、サーバーは SIGTERM を受けてから次の順で畳む。
 
-1. 生成中のAIの意見を中断して、そこまでの本文をDBに保存する
+1. 生成中のAIの返事を中断して、そこまでの本文をDBに保存する
 2. 開いているSSEを閉じる
 3. DBを閉じて終わる
 
@@ -356,7 +356,7 @@ DBには管理者アカウントも入っている（`admin_accounts`）。戻�
 **やっている間**
 
 - 大人が同じ部屋にいる。これが一番効く
-- AIの意見が止まったら、`/admin` のログと `journalctl -u kids-group-chat -n 50` を見る
+- AIの返事が止まったら、`/admin` のログと `journalctl -u kids-group-chat -n 50` を見る
 - AIに聞ける回数が尽きたら、`/admin` の設定で上げる
 
 **終わったら**
@@ -397,7 +397,7 @@ sudo journalctl -u caddy -n 50    # または sudo tail -f /var/log/nginx/error.
 | Googleのログインボタンが出ない | 「承認済みの JavaScript 生成元」に公開URLが入っているか。末尾のスラッシュは付けない |
 | ログインで「登録されていません」 | `SUPER_ADMIN_EMAILS` のアドレスと、ログインしたGoogleアカウントが一致しているか |
 | AIが黙ったまま | `/api/health` の `aiConfigured`。false ならトークンかモデル名 |
-| AIの意見がまとめて出る | Webサーバーのバッファ設定（3章） |
+| AIの返事がまとめて出る | Webサーバーのバッファ設定（3章） |
 | 添付が413 | nginx の `client_max_body_size` |
 | 入り直せない | 強制退出した子は同じ名前で入れない（仕様）。別の名前で入る |
 | ディスクが埋まった | `du -sh /var/lib/kids-group-chat/uploads` と控えの世代数 |

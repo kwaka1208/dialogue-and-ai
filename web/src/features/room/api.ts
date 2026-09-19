@@ -4,15 +4,27 @@ import type {
   Attachment,
   Message,
   Participant,
+  AiMode,
   PresenceEntry,
+  ReplyMode,
   RoomInfo,
 } from './types.ts';
+
+/** トップページのコード入力。部屋のIDを引くだけで、入室はまだしない */
+export function lookupRoom(code: string): Promise<{ roomId: string; name: string; url: string }> {
+  return apiFetch('/api/rooms/lookup', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
 
 export function roomInfo(roomId: string): Promise<RoomInfo> {
   return apiFetch<RoomInfo>(`/api/rooms/${roomId}`);
 }
 
-export function whoAmI(roomId: string): Promise<{ participant: Participant }> {
+export function whoAmI(
+  roomId: string,
+): Promise<{ participant: Participant; aiMode: AiMode; replyMode: ReplyMode }> {
   return apiFetch(`/api/rooms/${roomId}/me`);
 }
 
@@ -32,19 +44,19 @@ export function history(
   return apiFetch(`/api/rooms/${roomId}/messages`);
 }
 
+/** 意見モードの部屋で、ここまでのやり取りについてAIに意見を言ってもらう。発言は伴わない */
+export function askOpinion(roomId: string): Promise<{ ai: AiStatus }> {
+  return apiFetch(`/api/rooms/${roomId}/ai-opinion`, { method: 'POST' });
+}
+
 export function sendMessage(
   roomId: string,
-  input: { body: string; attachmentIds: string[] },
-): Promise<{ message: Message }> {
+  input: { body: string; askAi: boolean; attachmentIds: string[] },
+): Promise<{ message: Message; ai: AiStatus }> {
   return apiFetch(`/api/rooms/${roomId}/messages`, {
     method: 'POST',
     body: JSON.stringify(input),
   });
-}
-
-/** ここまでのやり取りについて、AIに意見を言ってもらう。発言は伴わない */
-export function askOpinion(roomId: string): Promise<{ ai: AiStatus }> {
-  return apiFetch(`/api/rooms/${roomId}/ai-opinion`, { method: 'POST' });
 }
 
 /**
@@ -68,7 +80,7 @@ export function attachmentUrl(roomId: string, attachmentId: string): string {
   return `/api/rooms/${roomId}/attachments/${attachmentId}`;
 }
 
-/** 生成中のAIの意見を打ち切る */
+/** 生成中のAIの応答を打ち切る */
 export function stopAi(roomId: string): Promise<{ stopped: boolean }> {
   return apiFetch(`/api/rooms/${roomId}/stop`, { method: 'POST' });
 }

@@ -1,3 +1,11 @@
+/**
+ * 部屋でのAIの立ち位置。部屋を作るときに選び、途中でも管理画面から変えられる。
+ * - chat    : 会話の相手になる。呼ばれたら (または毎回) 返事をする
+ * - opinion : 会話には入らず、頼まれたときだけ、そこまでのやり取りに意見を言う
+ */
+export type AiMode = 'chat' | 'opinion';
+/** 会話モードでAIが口を開くきっかけ。意見モードでは使わない */
+export type ReplyMode = 'mention' | 'always';
 export type MessageKind = 'user' | 'ai' | 'system';
 /** 添付の扱いの分かれ目。画面の見せ方とAIへの渡し方がこれで決まる */
 export type AttachmentKind = 'image' | 'text' | 'pdf' | 'other';
@@ -25,8 +33,12 @@ export interface AdminIdentity {
 
 export interface Room {
   id: string;
+  /** トップページで入れる6桁の数字 */
+  code: string;
   name: string;
   passcodeHash: string | null;
+  aiMode: AiMode;
+  replyMode: ReplyMode;
   capacity: number;
   turnLimit: number;
   turnsUsed: number;
