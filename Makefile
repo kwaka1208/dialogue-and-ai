@@ -30,6 +30,7 @@
 #   SUPER_ADMIN_EMAILS
 #   DOMAIN CERTBOT_EMAIL        HTTPS の終端で使う
 #   REPO BRANCH SERVICE         ふだんは書かなくてよい
+#                               (BRANCH は install / update のたびに指定してもよい)
 #
 # DATA_DIR / APP_DIR / BACKUP_DIR / PORT / NODE_ENV は、.env にあっても読まない。
 # 手元の .env は開発用で DATA_DIR=./data と NODE_ENV=development が入っており、
@@ -135,7 +136,7 @@ endef
 
 .DEFAULT_GOAL := help
 .PHONY: help install update rollback restart status health logs backup backup-cron \
-        https-caddy https-nginx _need-install-vars _need-domain _need-ref _need-abs-paths
+        https-caddy https-nginx _need-install-vars _need-domain _need-ref _need-abs-paths _need-target
 
 ## ----------------------------------------------------------------------------
 
@@ -146,6 +147,10 @@ help:
 	@echo '  make install HOST=... SAKURA_AI_TOKEN=... GOOGLE_CLIENT_ID=... SUPER_ADMIN_EMAILS=...'
 	@echo '                        新規インストール。すでに入っていれば何もせず止まる'
 	@echo '  make update  HOST=...  控えを取ってから git pull → build → 再起動'
+	@echo ''
+	@echo '  どちらも BRANCH= で入れるブランチを選べる (既定: $(BRANCH))'
+	@echo '    make install BRANCH=feature/xxx   そのブランチを clone する'
+	@echo '    make update  BRANCH=feature/xxx   サーバーが別ブランチなら切り替える'
 	@echo ''
 	@echo '  make status  HOST=...  サービスの状態と /api/health'
 	@echo '  make health  HOST=...  /api/health だけ'
@@ -170,40 +175,40 @@ help:
 	@echo ''
 
 ## 新規インストール。すでに入っていれば何もしない
-install: _need-abs-paths _need-install-vars
+install: _need-target _need-abs-paths _need-install-vars
 	$(call run,install,sudo)
 
 ## 入っているものを更新する
-update: _need-abs-paths
+update: _need-target _need-abs-paths
 	$(call run,update,sudo)
 
 ## 前のコミットに戻す (DBは戻らない)
-rollback: _need-abs-paths _need-ref
+rollback: _need-target _need-abs-paths _need-ref
 	$(call run,rollback,sudo)
 
-restart:
+restart: _need-target
 	$(call run,restart,sudo)
 
-backup:
+backup: _need-target
 	$(call run,backup,sudo)
 
-backup-cron:
+backup-cron: _need-target
 	$(call run,backup-cron,sudo)
 
-https-caddy: _need-domain
+https-caddy: _need-target _need-domain
 	$(call run,https-caddy,sudo)
 
-https-nginx: _need-domain
+https-nginx: _need-target _need-domain
 	$(call run,https-nginx,sudo)
 
 # 読むだけなので sudo は付けない (パスワードを聞かれない)
-status:
+status: _need-target
 	$(call run,status,)
 
-health:
+health: _need-target
 	$(call run,health,)
 
-logs:
+logs: _need-target
 	$(call run,logs,)
 
 ## ----------------------------------------------------------------------------
@@ -231,6 +236,22 @@ _need-abs-paths:
 			*) echo "$${pair%%=*} は絶対パスで指定してください (いまは $${pair#*=})" >&2; exit 1 ;; \
 		esac; \
 	done
+
+# HOST が空だと、その場（手元のマシン）で実行してしまう。
+# サーバー (Linux) の上で直接叩いているときだけ、それを許す
+_need-target:
+	@if [ -z '$(HOST)' ] && [ "$$(uname -s)" != Linux ]; then \
+		echo '' >&2; \
+		echo 'HOST が指定されていません。' >&2; \
+		echo 'このまま進めると、サーバーではなく、いま操作しているこのマシンに入れてしまいます。' >&2; \
+		echo '' >&2; \
+		echo '  手元から SSH 越しに:  make $(MAKECMDGOALS) HOST=kids.example.com' >&2; \
+		echo '  毎回書きたくないなら:  echo HOST=kids.example.com >> .env' >&2; \
+		echo '' >&2; \
+		echo 'サーバー (Linux) の上で直接叩くときは、HOST は要りません。' >&2; \
+		echo '' >&2; \
+		exit 1; \
+	fi
 
 _need-domain:
 	@[ -n '$(DOMAIN)' ] || { echo 'DOMAIN を指定してください (例: DOMAIN=kids.example.com)' >&2; exit 1; }

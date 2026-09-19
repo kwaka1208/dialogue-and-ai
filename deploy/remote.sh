@@ -78,6 +78,10 @@ die()  { printf '%s[中止] %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 
 need_root() {
 	[ "$(id -u)" -eq 0 ] || die "root で実行してください (make 経由なら sudo が付きます)"
+	# 手元の Mac などで流してしまったときに、何かを触る前に止める
+	if ! command -v systemctl >/dev/null 2>&1; then
+		die "systemd のあるサーバーで実行してください ($(uname -s) の上で動いています。HOST= を付け忘れていませんか)"
+	fi
 }
 
 need_var() {
@@ -170,7 +174,9 @@ cmd_install() {
 	install_user
 
 	step "リポジトリを置く: $APP_DIR ($REPO / $BRANCH)"
-	git clone --branch "$BRANCH" "$REPO" "$APP_DIR"
+	if ! git clone --branch "$BRANCH" "$REPO" "$APP_DIR"; then
+		die "clone に失敗した。ブランチ名が正しいか見ること (BRANCH=$BRANCH)"
+	fi
 	info "$(git_in_app rev-parse --short HEAD) $(git_in_app log -1 --format=%s)"
 
 	step "依存を入れる (npm ci)"
@@ -315,17 +321,27 @@ cmd_update() {
 		skip "DBがまだ無い ($DATA_DIR/kids-group-chat.sqlite)"
 	fi
 
-	local before after
+	local before after current
 	before="$(git_in_app rev-parse --short HEAD)"
-	step "いまのコミット: $before"
+	current="$(git_in_app rev-parse --abbrev-ref HEAD)"
+	step "いまのコミット: $before ($current)"
 	info "戻すときは make rollback REF=$before"
 
-	step "ソースを新しくする (git pull)"
-	git_in_app pull --ff-only origin "$BRANCH"
+	step "ソースを新しくする (origin/$BRANCH)"
+	git_in_app fetch origin "$BRANCH"
+
+	if [ "$current" != "$BRANCH" ]; then
+		# 別のブランチを見ていたら乗り換える。detached HEAD もここで直る。
+		# pull だと今いるブランチに origin/$BRANCH を混ぜてしまうので使わない
+		warn "ブランチを切り替えます: $current -> $BRANCH"
+		git_in_app checkout -B "$BRANCH" "origin/$BRANCH"
+	else
+		git_in_app merge --ff-only "origin/$BRANCH"
+	fi
 	after="$(git_in_app rev-parse --short HEAD)"
 
 	if [ "$before" = "$after" ]; then
-		ok "更新はありません ($after のまま)。ビルドも再起動もしません"
+		ok "更新はありません ($BRANCH の $after のまま)。ビルドも再起動もしません"
 		info ".env を書き換えただけなら make restart"
 		return 0
 	fi
