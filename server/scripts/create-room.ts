@@ -2,7 +2,7 @@
  * 開発用に部屋をひとつ作る。管理画面ができるまでの代用。
  *
  *   npm run room:new -w server
- *   npm run room:new -w server -- --name "ロボットのへや" --passcode 1234
+ *   npm run room:new -w server -- --name "ロボットのへや" --passcode 1234 --always
  *   npm run room:new -w server -- --owner admin@example.com
  *
  * --owner を付けないと所有者不明の部屋になり、管理画面では特権管理者にしか見えない。
@@ -27,6 +27,7 @@ if (ownerEmail && !owner) {
 const room = createRoom({
   name: flag('name') ?? 'テストのへや',
   passcode: flag('passcode') ?? null,
+  replyMode: process.argv.includes('--always') ? 'always' : 'mention',
   capacity: flag('capacity') ? Number(flag('capacity')) : undefined,
   expiresInHours: flag('hours') ? Number(flag('hours')) : undefined,
   createdBy: owner?.id ?? null,
@@ -35,6 +36,7 @@ const room = createRoom({
 console.log(`部屋を作りました: ${room.name}`);
 console.log(`  URL       : http://localhost:5173/r/${room.id}`);
 console.log(`  合言葉    : ${room.passcodeHash ? (flag('passcode') ?? '(設定あり)') : 'なし'}`);
+console.log(`  返答モード: ${room.replyMode}`);
 console.log(`  所有者    : ${owner ? owner.email : 'なし (特権管理者だけが見られます)'}`);
 console.log(`  期限      : ${room.expiresAt}`);
 console.log(`  DB        : ${config.dbPath}`);

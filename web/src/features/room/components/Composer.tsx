@@ -9,11 +9,21 @@ import type { Attachment } from '../types.ts';
 interface ComposerProps {
   roomId: string;
   /** 送れたら true。false のときは書いたものを消さずに残す */
-  onSend: (body: string, attachmentIds: string[]) => Promise<boolean>;
+  onSend: (body: string, askAi: boolean, attachmentIds: string[]) => Promise<boolean>;
+  /** サーバーにAIの設定があるか */
+  aiEnabled: boolean;
+  /** いまAIが誰かに返事を書いている最中か */
+  aiBusy: boolean;
   disabled: boolean;
 }
 
-export function Composer({ roomId, onSend, disabled }: ComposerProps) {
+function aiButtonTitle(aiEnabled: boolean, aiBusy: boolean): string {
+  if (!aiEnabled) return 'いまは AIが おやすみちゅう';
+  if (aiBusy) return 'AIが おへんじを かいているよ';
+  return 'AIに こたえてもらう';
+}
+
+export function Composer({ roomId, onSend, aiEnabled, aiBusy, disabled }: ComposerProps) {
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   // アップロードずみで、まだ送っていない添付
@@ -25,12 +35,13 @@ export function Composer({ roomId, onSend, disabled }: ComposerProps) {
   const hasContent = body.trim().length > 0 || pending.length > 0;
   const canSend = hasContent && !sending && !uploading && !disabled;
 
-  const send = async (): Promise<void> => {
+  const send = async (askAi: boolean): Promise<void> => {
     if (!canSend) return;
     setSending(true);
     try {
       const sent = await onSend(
         body.trim(),
+        askAi,
         pending.map((attachment) => attachment.id),
       );
       if (sent) {
@@ -45,18 +56,18 @@ export function Composer({ roomId, onSend, disabled }: ComposerProps) {
 
   const handleSubmit = (event: FormEvent): void => {
     event.preventDefault();
-    void send();
+    void send(false);
   };
 
   // Enterで送信、Shift+Enterで改行。スマホでは改行ボタンが出るので邪魔しない
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
-      void send();
+      void send(false);
     }
   };
 
-  /** 選んだファイルはその場で送っておく。発言に付くのは「おくる」を押したとき */
+  /** 選んだファイルはその場で送っておく。発言に付くのは「いう」を押したとき */
   const handleFiles = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const chosen = [...(event.target.files ?? [])];
     // 同じファイルをもう一度選べるように、input の値は先に空へ戻す
@@ -161,7 +172,16 @@ export function Composer({ roomId, onSend, disabled }: ComposerProps) {
           {uploading ? 'おくってます…' : '📎 ファイル'}
         </button>
         <button className="primary-button" type="submit" disabled={!canSend}>
-          おくる
+          いう
+        </button>
+        <button
+          className="ai-button"
+          type="button"
+          onClick={() => void send(true)}
+          disabled={!canSend || !aiEnabled || aiBusy}
+          title={aiButtonTitle(aiEnabled, aiBusy)}
+        >
+          🤖 AIに きく
         </button>
       </div>
     </form>

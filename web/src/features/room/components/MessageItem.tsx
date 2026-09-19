@@ -24,7 +24,7 @@ export function MessageItem({ message, roomId, isMine, isStreaming }: MessageIte
     return <li className="message message-system">{message.body}</li>;
   }
 
-  const speaker = message.kind === 'ai' ? 'AIの いけん' : (message.displayName ?? 'だれか');
+  const speaker = message.kind === 'ai' ? 'AI' : (message.displayName ?? 'だれか');
 
   // 最初のひとことが届くまでのあいだ、待たされている感じを減らす
   if (isStreaming && message.body === '') {

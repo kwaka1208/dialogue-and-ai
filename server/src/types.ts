@@ -1,3 +1,4 @@
+export type ReplyMode = 'mention' | 'always';
 export type MessageKind = 'user' | 'ai' | 'system';
 /** 添付の扱いの分かれ目。画面の見せ方とAIへの渡し方がこれで決まる */
 export type AttachmentKind = 'image' | 'text' | 'pdf' | 'other';
@@ -27,6 +28,7 @@ export interface Room {
   id: string;
   name: string;
   passcodeHash: string | null;
+  replyMode: ReplyMode;
   capacity: number;
   turnLimit: number;
   turnsUsed: number;

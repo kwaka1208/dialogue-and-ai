@@ -2,12 +2,13 @@ import { getDb } from '../db/index.js';
 import { randomId, sha256 } from '../lib/ids.js';
 import { isoAfterHours, nowIso } from '../lib/time.js';
 import { config } from '../config.js';
-import type { Room } from '../types.js';
+import type { ReplyMode, Room } from '../types.js';
 
 interface RoomRow {
   id: string;
   name: string;
   passcode_hash: string | null;
+  reply_mode: string;
   capacity: number;
   turn_limit: number;
   turns_used: number;
@@ -22,6 +23,7 @@ function toRoom(row: RoomRow): Room {
     id: row.id,
     name: row.name,
     passcodeHash: row.passcode_hash,
+    replyMode: row.reply_mode === 'always' ? 'always' : 'mention',
     capacity: row.capacity,
     turnLimit: row.turn_limit,
     turnsUsed: row.turns_used,
@@ -35,6 +37,7 @@ function toRoom(row: RoomRow): Room {
 export interface CreateRoomInput {
   name: string;
   passcode?: string | null;
+  replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
   expiresInHours?: number;
@@ -48,6 +51,7 @@ export function createRoom(input: CreateRoomInput): Room {
     id: randomId(22),
     name: input.name,
     passcodeHash: input.passcode ? sha256(input.passcode) : null,
+    replyMode: input.replyMode ?? defaults.replyMode,
     capacity: input.capacity ?? defaults.capacity,
     turnLimit: input.turnLimit ?? defaults.turnLimit,
     turnsUsed: 0,
@@ -57,11 +61,10 @@ export function createRoom(input: CreateRoomInput): Room {
     createdAt: nowIso(),
   };
 
-  // reply_mode は使わなくなった列。古いDBに NOT NULL で残っているので固定値を入れる
   getDb()
     .prepare(
       `INSERT INTO rooms (id, name, passcode_hash, reply_mode, capacity, turn_limit, turns_used, expires_at, created_by, created_at)
-       VALUES (@id, @name, @passcodeHash, 'mention', @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
+       VALUES (@id, @name, @passcodeHash, @replyMode, @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
     )
     .run(room);
 
@@ -106,6 +109,7 @@ export function softDeleteRoom(id: string): boolean {
 
 export interface UpdateRoomInput {
   name?: string;
+  replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
 }
@@ -117,6 +121,7 @@ export interface UpdateRoomInput {
 export function updateRoom(id: string, input: UpdateRoomInput): Room | null {
   const columns: Record<keyof UpdateRoomInput, string> = {
     name: 'name',
+    replyMode: 'reply_mode',
     capacity: 'capacity',
     turnLimit: 'turn_limit',
   };

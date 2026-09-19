@@ -21,3 +21,6 @@ export function remainingText(expiresAt: string, now = Date.now()): string {
   return `あと${Math.floor(minutes / 60)}時間${minutes % 60}分`;
 }
 
+export function replyModeText(mode: 'mention' | 'always'): string {
+  return mode === 'always' ? '毎回返す' : '呼ばれたら返す';
+}

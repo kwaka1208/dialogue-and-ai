@@ -1,9 +1,10 @@
 /** server/src/routes/admin.ts が返す形に対応する */
-import type { Message, Participant } from '../room/types.ts';
+import type { Message, Participant, ReplyMode } from '../room/types.ts';
 
 export interface AdminRoom {
   id: string;
   name: string;
+  replyMode: ReplyMode;
   capacity: number;
   turnLimit: number;
   turnsUsed: number;
@@ -73,6 +74,7 @@ export interface AdminSession {
     capacity: number;
     expiresInHours: number;
     turnLimit: number;
+    replyMode: ReplyMode;
   };
   rateLimits: {
     aiTurnsPerMinute: number;
@@ -83,6 +85,7 @@ export interface AdminSession {
 export interface CreateRoomInput {
   name: string;
   passcode?: string;
+  replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
   expiresInHours?: number;
@@ -90,6 +93,7 @@ export interface CreateRoomInput {
 
 export interface UpdateRoomInput {
   name?: string;
+  replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
 }

@@ -1,7 +1,7 @@
 /**
- * 部屋の履歴からリクエストを組み立て、AIの意見を部屋の全員に流す。
+ * 部屋の履歴からリクエストを組み立て、AIの応答を部屋の全員に流す。
  *
- * 意見は「空のメッセージを1件つくる → 差分を流す → 本文を確定させる」の順で進む。
+ * 応答は「空のメッセージを1件つくる → 差分を流す → 本文を確定させる」の順で進む。
  * 途中で入室した子にも同じものが見えるよう、進行中の本文は ai-runs が持つ。
  */
 import {
@@ -19,18 +19,11 @@ import { publish } from '../lib/room-hub.js';
 import { buildAttachmentPayloads } from './attachment-context.js';
 import type { Message } from '../types.js';
 
-/** 意見を受け付けなかった理由。フロントで子ども向けの文言に直す */
-export type AiSkipReason =
-  | 'busy'
-  | 'unavailable'
-  | 'turn_limit'
-  | 'rate_limited'
-  | 'filtered'
-  /** まだ誰も発言していない。意見の材料が無い */
-  | 'no_messages';
+/** 呼びかけを受け付けなかった理由。フロントで子ども向けの文言に直す */
+export type AiSkipReason = 'busy' | 'unavailable' | 'turn_limit' | 'rate_limited' | 'filtered';
 
 /**
- * 意見の生成を開始する。開始できたら true。
+ * 応答を開始する。開始できたら true。
  * 生成そのものは待たずに進むので、呼び出し側は POST の応答をすぐ返せる。
  */
 export function startAiResponse(roomId: string): boolean {
@@ -139,7 +132,7 @@ function fail(roomId: string, run: AiRun, error: unknown): void {
   const detail = error instanceof Error ? error.message : String(error);
   const timedOut = error instanceof Error && error.name === 'TimeoutError';
   console.error(
-    `[ai] 部屋 ${roomId} の意見の生成に失敗しました (${error instanceof AiEngineError ? `status=${error.status ?? '-'}` : error instanceof Error ? error.name : 'unknown'}): ${detail}`,
+    `[ai] 部屋 ${roomId} の応答に失敗しました (${error instanceof AiEngineError ? `status=${error.status ?? '-'}` : error instanceof Error ? error.name : 'unknown'}): ${detail}`,
   );
 
   deleteMessage(run.messageId);
@@ -154,8 +147,8 @@ function fail(roomId: string, run: AiRun, error: unknown): void {
     roomId,
     kind: 'system',
     body: timedOut
-      ? 'AIの いけんが おそいので やめました。もういちど きいてみてね'
-      : 'いま AIに いけんを きけないみたい。すこし してから もういちど きいてね',
+      ? 'AIの おへんじが おそいので やめました。もういちど きいてみてね'
+      : 'いま AIと おはなし できないみたい。すこし してから もういちど きいてね',
   });
   publish(roomId, { type: 'message', message: forRoom(notice) });
 }

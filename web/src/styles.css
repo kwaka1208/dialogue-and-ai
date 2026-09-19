@@ -459,30 +459,6 @@ body {
   background: #eaf2fd;
 }
 
-/* ---- AIに いけんを きく ---- */
-
-.ai-ask {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.75rem 1rem 0.5rem;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-
-.ai-ask .ai-button {
-  width: 100%;
-  max-width: 26rem;
-}
-
-.ai-ask-hint {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.85rem;
-  text-align: center;
-}
-
 /* ---- 入力欄 ---- */
 
 .composer {
@@ -517,6 +493,7 @@ body {
 }
 
 .composer-buttons .primary-button,
+.composer-buttons .ai-button,
 .composer-buttons .attach-button {
   flex: 1;
   min-height: 3rem;
@@ -525,12 +502,12 @@ body {
   white-space: nowrap;
 }
 
-/* 送るのが主な導線なので、ファイルより広く取る */
-.composer-buttons .primary-button {
-  flex: 1.6;
+/* 「AIに きく」がこの画面の主役の導線なので、いちばん広く取る */
+.composer-buttons .ai-button {
+  flex: 1.4;
 }
 
-/* いちばん小さい画面 (320px幅) でも、ボタンが1行に収まるように詰める */
+/* いちばん小さい画面 (320px幅) でも、3つのボタンが1行に収まるように詰める */
 @media (max-width: 22.5rem) {
   .composer {
     padding-left: 0.6rem;
@@ -542,14 +519,10 @@ body {
   }
 
   .composer-buttons .primary-button,
+  .composer-buttons .ai-button,
   .composer-buttons .attach-button {
     padding: 0 0.4rem;
     font-size: 0.95rem;
-  }
-
-  .ai-ask {
-    padding-left: 0.6rem;
-    padding-right: 0.6rem;
   }
 }
 

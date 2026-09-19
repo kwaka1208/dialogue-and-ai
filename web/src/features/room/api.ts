@@ -5,6 +5,7 @@ import type {
   Message,
   Participant,
   PresenceEntry,
+  ReplyMode,
   RoomInfo,
 } from './types.ts';
 
@@ -12,7 +13,7 @@ export function roomInfo(roomId: string): Promise<RoomInfo> {
   return apiFetch<RoomInfo>(`/api/rooms/${roomId}`);
 }
 
-export function whoAmI(roomId: string): Promise<{ participant: Participant }> {
+export function whoAmI(roomId: string): Promise<{ participant: Participant; replyMode: ReplyMode }> {
   return apiFetch(`/api/rooms/${roomId}/me`);
 }
 
@@ -34,17 +35,12 @@ export function history(
 
 export function sendMessage(
   roomId: string,
-  input: { body: string; attachmentIds: string[] },
-): Promise<{ message: Message }> {
+  input: { body: string; askAi: boolean; attachmentIds: string[] },
+): Promise<{ message: Message; ai: AiStatus }> {
   return apiFetch(`/api/rooms/${roomId}/messages`, {
     method: 'POST',
     body: JSON.stringify(input),
   });
-}
-
-/** ここまでのやり取りについて、AIに意見を言ってもらう。発言は伴わない */
-export function askOpinion(roomId: string): Promise<{ ai: AiStatus }> {
-  return apiFetch(`/api/rooms/${roomId}/ai-opinion`, { method: 'POST' });
 }
 
 /**
@@ -68,7 +64,7 @@ export function attachmentUrl(roomId: string, attachmentId: string): string {
   return `/api/rooms/${roomId}/attachments/${attachmentId}`;
 }
 
-/** 生成中のAIの意見を打ち切る */
+/** 生成中のAIの応答を打ち切る */
 export function stopAi(roomId: string): Promise<{ stopped: boolean }> {
   return apiFetch(`/api/rooms/${roomId}/stop`, { method: 'POST' });
 }
