@@ -70,6 +70,8 @@ function addMissingColumns(db: Database.Database): void {
     { table: 'rooms', column: 'created_by', definition: 'TEXT REFERENCES admin_accounts(id)' },
     // フェーズ10: トップページから入るための6桁コード。既存の部屋には起動時に採番する
     { table: 'rooms', column: 'code', definition: 'TEXT' },
+    // フェーズ11: 部屋でのAIの立ち位置。既存の部屋は今までどおりの会話モードになる
+    { table: 'rooms', column: 'ai_mode', definition: "TEXT NOT NULL DEFAULT 'chat'" },
   ];
 
   for (const { table, column, definition } of additions) {

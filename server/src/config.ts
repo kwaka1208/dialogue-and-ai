@@ -21,6 +21,8 @@ const schema = z.object({
   SAKURA_AI_TOKEN: z.string().optional(),
   SAKURA_AI_BASE_URL: z.string().url().default('https://api.ai.sakura.ad.jp/v1'),
   SAKURA_AI_MODEL: z.string().optional(),
+  // 意見モードだけ別のモデルを使いたいときに指定する。未設定なら SAKURA_AI_MODEL を使う
+  SAKURA_AI_MODEL_OPINION: z.string().optional(),
 
   // 管理画面のGoogleログイン。Google Cloud コンソールで作るウェブアプリケーションのクライアントID
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -83,6 +85,8 @@ export const config = {
     token: env.SAKURA_AI_TOKEN,
     baseUrl: env.SAKURA_AI_BASE_URL.replace(/\/$/, ''),
     model: env.SAKURA_AI_MODEL,
+    // モードごとに向き不向きがあるので、意見モードだけ差し替えられるようにしてある
+    opinionModel: env.SAKURA_AI_MODEL_OPINION || env.SAKURA_AI_MODEL,
     timeoutMs: 60_000,
   },
 
@@ -104,6 +108,7 @@ export const config = {
     capacity: 20,
     expiresInHours: 4,
     turnLimit: 100,
+    aiMode: 'chat' as const,
     replyMode: 'mention' as const,
   },
 

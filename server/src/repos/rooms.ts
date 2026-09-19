@@ -2,13 +2,14 @@ import { getDb } from '../db/index.js';
 import { randomId, randomDigits, sha256 } from '../lib/ids.js';
 import { isoAfterHours, nowIso } from '../lib/time.js';
 import { config } from '../config.js';
-import type { ReplyMode, Room } from '../types.js';
+import type { AiMode, ReplyMode, Room } from '../types.js';
 
 interface RoomRow {
   id: string;
   code: string | null;
   name: string;
   passcode_hash: string | null;
+  ai_mode: string;
   reply_mode: string;
   capacity: number;
   turn_limit: number;
@@ -26,6 +27,7 @@ function toRoom(row: RoomRow): Room {
     code: row.code ?? '',
     name: row.name,
     passcodeHash: row.passcode_hash,
+    aiMode: row.ai_mode === 'opinion' ? 'opinion' : 'chat',
     replyMode: row.reply_mode === 'always' ? 'always' : 'mention',
     capacity: row.capacity,
     turnLimit: row.turn_limit,
@@ -40,6 +42,7 @@ function toRoom(row: RoomRow): Room {
 export interface CreateRoomInput {
   name: string;
   passcode?: string | null;
+  aiMode?: AiMode;
   replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
@@ -55,6 +58,7 @@ export function createRoom(input: CreateRoomInput): Room {
     code: issueCode(),
     name: input.name,
     passcodeHash: input.passcode ? sha256(input.passcode) : null,
+    aiMode: input.aiMode ?? defaults.aiMode,
     replyMode: input.replyMode ?? defaults.replyMode,
     capacity: input.capacity ?? defaults.capacity,
     turnLimit: input.turnLimit ?? defaults.turnLimit,
@@ -67,8 +71,8 @@ export function createRoom(input: CreateRoomInput): Room {
 
   getDb()
     .prepare(
-      `INSERT INTO rooms (id, code, name, passcode_hash, reply_mode, capacity, turn_limit, turns_used, expires_at, created_by, created_at)
-       VALUES (@id, @code, @name, @passcodeHash, @replyMode, @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
+      `INSERT INTO rooms (id, code, name, passcode_hash, ai_mode, reply_mode, capacity, turn_limit, turns_used, expires_at, created_by, created_at)
+       VALUES (@id, @code, @name, @passcodeHash, @aiMode, @replyMode, @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
     )
     .run(room);
 
@@ -171,6 +175,7 @@ export function softDeleteRoom(id: string): boolean {
 
 export interface UpdateRoomInput {
   name?: string;
+  aiMode?: AiMode;
   replyMode?: ReplyMode;
   capacity?: number;
   turnLimit?: number;
@@ -183,6 +188,7 @@ export interface UpdateRoomInput {
 export function updateRoom(id: string, input: UpdateRoomInput): Room | null {
   const columns: Record<keyof UpdateRoomInput, string> = {
     name: 'name',
+    aiMode: 'ai_mode',
     replyMode: 'reply_mode',
     capacity: 'capacity',
     turnLimit: 'turn_limit',
