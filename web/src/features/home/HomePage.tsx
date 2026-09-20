@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../lib/api.ts';
 import { lookupRoom } from '../room/api.ts';
 
@@ -76,6 +76,10 @@ export function HomePage() {
         ばんごうが わからないときは、おとなの人に きいてね。
         <br />
         URLを もらっているときは、その URLを ひらくだけで はいれるよ。
+      </p>
+
+      <p className="home-help-link">
+        <Link to="/help">つかいかたを 見る</Link>
       </p>
     </main>
   );

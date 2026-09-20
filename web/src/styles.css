@@ -1058,3 +1058,101 @@ textarea.field-input {
     grid-column: 1 / -1;
   }
 }
+
+/* ---- 使い方 ---- */
+/* 子ども向け (/help) と管理者向け (/admin/help) で共通。
+   外枠は .centered-page と .admin-page に任せて、ここでは読み物としての間隔だけ持つ */
+
+.help-page {
+  padding-bottom: 4rem;
+}
+
+.help-title {
+  font-size: 1.6rem;
+  margin-bottom: 1rem;
+}
+
+.help-section {
+  margin-top: 2rem;
+}
+
+.help-heading {
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 2px solid var(--color-border);
+  font-size: 1.2rem;
+}
+
+.help-list {
+  margin: 0.5rem 0;
+  padding-left: 1.3rem;
+}
+
+.help-list li {
+  margin-bottom: 0.4rem;
+}
+
+.help-steps {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.help-steps li {
+  margin-bottom: 0.3rem;
+}
+
+/* 本文への補足。読み飛ばしても困らない行 */
+.help-sub {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+/* 見出し列つきの表。「こまったとき」と管理者向けの一覧に使う */
+.help-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+
+.help-table th,
+.help-table td {
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.help-table th {
+  width: 9rem;
+  font-weight: 700;
+}
+
+/* 管理者向けの表は行数が多いので、管理画面と同じ詰め方に寄せる */
+.help-page .admin-table td {
+  vertical-align: top;
+}
+
+.help-back {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.home-help-link {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+/* 表が横に潰れると読めなくなるので、狭い画面では上下に積む */
+@media (max-width: 34rem) {
+  .help-table th,
+  .help-table td {
+    display: block;
+    width: auto;
+  }
+
+  .help-table th {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAdminSession } from './hooks/useAdminSession.ts';
 import { useRooms } from './hooks/useRooms.ts';
 import { AdminLogin } from './components/AdminLogin.tsx';
@@ -40,6 +41,7 @@ function AdminConsole({ session, onSignOut }: AdminConsoleProps) {
       <header className="admin-header">
         <h1 className="admin-title">管理画面</h1>
         <div className="admin-header-right">
+          <Link to="/admin/help">使い方</Link>
           {!session.aiConfigured && (
             <span className="status-badge">AI未設定（子ども同士のチャットのみ）</span>
           )}
