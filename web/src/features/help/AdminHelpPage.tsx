@@ -1,5 +1,37 @@
 import { Link } from 'react-router-dom';
 import { useAdminSession } from '../admin/hooks/useAdminSession.ts';
+import loginPng from './screenshots/01-login.webp';
+import headerPng from './screenshots/02-header.webp';
+import accountsPng from './screenshots/03-accounts.webp';
+import createRoomPng from './screenshots/04-create-room.webp';
+import roomListPng from './screenshots/05-room-list.webp';
+import roomDetailPng from './screenshots/06-room-detail.webp';
+import roomSettingsPng from './screenshots/07-room-settings.webp';
+import messageLogPng from './screenshots/08-message-log.webp';
+
+interface FigureProps {
+  src: string;
+  alt: string;
+  caption: string;
+  /**
+   * 撮ったときの画面上の幅(px)。写真ごとに拡大率が違うので、これで実寸に戻して並びを揃える。
+   * 画面が狭いときは 100% が優先されるので、はみ出すことはない。
+   */
+  width: number;
+}
+
+/**
+ * 画面写真。alt は読み上げ用に何が写っているかだけを書き、
+ * どこを見るかは caption に書く（読み上げでも二重にならないように分ける）。
+ */
+function Figure({ src, alt, caption, width }: FigureProps) {
+  return (
+    <figure className="help-figure" style={{ maxWidth: `${width}px` }}>
+      <img src={src} alt={alt} loading="lazy" />
+      <figcaption>{caption}</figcaption>
+    </figure>
+  );
+}
 
 /**
  * 管理者向けの使い方。読むのは大人なので、管理画面と同じ漢字混じりで書く。
@@ -34,6 +66,12 @@ export function AdminHelpPage() {
           <li>会話のあいだは、ログや在室者を見ながら見守る</li>
           <li>終わったら、必要ならエクスポートしてから部屋を削除する</li>
         </ol>
+        <Figure
+          src={headerPng}
+          width={1010}
+          alt="管理画面のヘッダー。左に「管理画面」、右に「使い方」リンク、ログイン中の名前、特権管理者のしるし、ログアウトボタン"
+          caption="ログインするとこの帯が上に出ます。このページはここの「使い方」から開けます。"
+        />
       </section>
 
       <section className="admin-section">
@@ -41,6 +79,12 @@ export function AdminHelpPage() {
         <p>
           ログインできるのは、あらかじめ登録されたGoogleアカウントだけです。権限は2種類あります。
         </p>
+        <Figure
+          src={loginPng}
+          width={530}
+          alt="管理画面のログイン画面。「Google でログイン」ボタンだけが置かれている"
+          caption="未ログインで /admin を開くとこの画面になります。登録されていないアカウントでは入れません。"
+        />
         <table className="admin-table">
           <thead>
             <tr>
@@ -73,6 +117,12 @@ export function AdminHelpPage() {
           無効化すると行は残るので、あとから有効に戻せます。削除するとその人の部屋は
           「所有者なし」で残り、以後は特権管理者だけが管理できます。
         </p>
+        <Figure
+          src={accountsPng}
+          width={980}
+          alt="管理者アカウントの登録欄と一覧。メールアドレス、名前、権限、最終ログインの列があり、管理者の行には「無効にする」「削除」ボタンが出ている"
+          caption="「管理者アカウント」は特権管理者にだけ出ます。特権管理者の行には無効化・削除のボタンが出ません。"
+        />
         <p className="help-sub">
           ログインの状態は既定で12時間で切れます。アカウントを無効化・削除すると、
           その人が開いている画面もその場でログアウトします。
@@ -82,6 +132,12 @@ export function AdminHelpPage() {
       <section className="admin-section">
         <h2 className="admin-section-title">部屋を作る</h2>
         <p>「部屋を作る」で項目を埋めて、「作る」を押します。</p>
+        <Figure
+          src={createRoomPng}
+          width={914}
+          alt="部屋を作るフォーム。部屋の名前、合言葉、定員、AIに聞ける回数、有効時間、AIのモード、AIの返し方、モデル、system prompt の入力欄が並んでいる"
+          caption="モデルと system prompt は空欄のままで構いません。空欄が「既定を使う」の意味になります。"
+        />
         <table className="admin-table">
           <thead>
             <tr>
@@ -146,6 +202,12 @@ export function AdminHelpPage() {
             <b>URL</b>：詳細の「URLをコピー」で取れます。QRコードやチャットで渡します
           </li>
         </ul>
+        <Figure
+          src={roomListPng}
+          width={922}
+          alt="部屋の一覧。各行に6桁の部屋コード、部屋の名前、残り時間、在室数、発言数、AIの使用量、モード、作った管理者が並び、右に「コードをコピー」「URLをコピー」ボタンがある"
+          caption="行をクリックすると下に詳細が開きます。作った管理者の列は特権管理者にだけ出ます。"
+        />
         <p className="help-sub">
           コードは部屋を作ったときに自動で採番されます。期限が切れた部屋のコードは使えなくなり、
           あとで別の部屋に回ります。
@@ -215,6 +277,12 @@ export function AdminHelpPage() {
             既定の文面が入力欄に入るので、そこから直せます
           </li>
         </ul>
+        <Figure
+          src={roomSettingsPng}
+          width={918}
+          alt="部屋の詳細の設定欄。部屋の名前、定員、AIに聞ける回数、AIのモード、AIの返し方、モデル、system prompt を変えられる"
+          caption="部屋の詳細の「設定」。ここで変えたあとは、いちばん下の「設定を保存」を押します。"
+        />
         <p className="help-sub">
           既定でうまくいっているなら、触る必要はありません。いまの設定は部屋の詳細の「AIの中身」で
           確認できます。
@@ -223,6 +291,12 @@ export function AdminHelpPage() {
 
       <section className="admin-section">
         <h2 className="admin-section-title">部屋を見守る・片づける</h2>
+        <Figure
+          src={roomDetailPng}
+          width={918}
+          alt="部屋の詳細の上部。期限、在室、発言、AIのモード、AIの中身、AIの使用、添付、部屋コード、合言葉、作った人が並び、下に「4時間 延長」「ログをエクスポート」「部屋を削除」のボタンがある"
+          caption="部屋の詳細の上部。その場で要るものはここに揃っています。"
+        />
         <table className="admin-table">
           <thead>
             <tr>
@@ -272,6 +346,12 @@ export function AdminHelpPage() {
             </tr>
           </tbody>
         </table>
+        <Figure
+          src={messageLogPng}
+          width={918}
+          alt="会話ログ。時刻・発言者・本文が1行ずつ並び、最後の行には赤い「要確認」の印が付いて背景が薄い赤になっている"
+          caption="気をつけたい言葉が入っていた行には「要確認」が付き、背景の色も変わります。この写真は説明のために、当たり障りのない語を気をつけたい言葉として設定した状態です。"
+        />
       </section>
 
       <section className="admin-section">

@@ -312,6 +312,20 @@ Googleアカウントでのログインが必須で、入れるのはサーバ�
 上限の回数は `config.ts` の値なので、`/admin/help` には焼き付けず、ログイン中のセッションから
 引いて出している。ログアウト中はその段だけ出さない。
 
+### 画面写真
+
+`/admin/help` には画面写真を8枚入れてある（`web/src/features/help/screenshots/`）。
+
+置き場所に決まりがある。本番で静的配信されるのは `/assets/` の下だけ（`server/src/index.ts` の
+`serveStatic`）なので、`web/public/` に置くと `index.html` にフォールバックして本番でだけ壊れる。
+TSXから `import` して Vite に `dist/assets/` へ出させること。
+
+撮り直すときは、実データが写らないよう使い捨てのDB（`DATA_DIR` を別に向ける）で撮る。写真の中の
+メールアドレスと名前はダミー。ログの「要確認」の写真は、説明のために当たり障りのない語を
+`NG_WORDS_FILE` に設定して撮ったもので、既定のリストとは関係ない。
+
+写真ごとに拡大率が違うので、`Figure` に撮ったときの画面上の幅(px)を渡して実寸に戻している。
+
 ## 本番に置く
 
 手順は [`docs/deploy.md`](./docs/deploy.md) にまとめてある。1コア/1GB の Ubuntu 1台に、
