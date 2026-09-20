@@ -5,9 +5,12 @@ import { aiModeText, dateTimeText, remainingText, replyModeText } from '../forma
 import { RoomSettings } from './RoomSettings.tsx';
 import { ParticipantTable } from './ParticipantTable.tsx';
 import { MessageLog } from './MessageLog.tsx';
+import type { AiDefaults } from '../types.ts';
 
 interface RoomDetailPanelProps {
   roomId: string;
+  /** 部屋で上書きしなかったときに使われる system prompt とモデル。設定タブに渡す */
+  aiDefaults: AiDefaults;
   /** 一覧の値も変わるので、部屋をいじったら親にも知らせる */
   onRoomChanged: () => Promise<void>;
   onRoomDeleted: () => void;
@@ -16,7 +19,18 @@ interface RoomDetailPanelProps {
 /** 延長は4時間きざみ。イベントが延びたときに押す */
 const EXTEND_HOURS = 4;
 
-export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDetailPanelProps) {
+/** いま選ばれているモードで、モデルと system prompt が既定のままかどうかを1行で示す */
+function aiBrainText(model: string | null, systemPrompt: string | null): string {
+  const promptText = systemPrompt === null ? '既定のプロンプト' : 'この部屋のプロンプト';
+  return `${model ?? '既定のモデル'} / ${promptText}`;
+}
+
+export function RoomDetailPanel({
+  roomId,
+  aiDefaults,
+  onRoomChanged,
+  onRoomDeleted,
+}: RoomDetailPanelProps) {
   const { detail, messages, error, reload } = useRoomDetail(roomId);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -93,6 +107,15 @@ export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDe
           <dd>
             {aiModeText(room.aiMode)}
             {room.aiMode === 'chat' && `（${replyModeText(room.replyMode)}）`}
+          </dd>
+        </div>
+        <div>
+          <dt>AIの中身</dt>
+          <dd>
+            {aiBrainText(
+              room.aiMode === 'opinion' ? room.opinionModel : room.chatModel,
+              room.aiMode === 'opinion' ? room.opinionSystemPrompt : room.chatSystemPrompt,
+            )}
           </dd>
         </div>
         <div>
@@ -174,7 +197,7 @@ export function RoomDetailPanel({ roomId, onRoomChanged, onRoomDeleted }: RoomDe
 
       <section className="admin-section">
         <h3 className="admin-section-title">設定</h3>
-        <RoomSettings room={room} onSaved={refresh} />
+        <RoomSettings room={room} aiDefaults={aiDefaults} onSaved={refresh} />
       </section>
 
       <section className="admin-section">

@@ -11,6 +11,10 @@ interface RoomRow {
   passcode_hash: string | null;
   ai_mode: string;
   reply_mode: string;
+  chat_system_prompt: string | null;
+  opinion_system_prompt: string | null;
+  chat_model: string | null;
+  opinion_model: string | null;
   capacity: number;
   turn_limit: number;
   turns_used: number;
@@ -29,6 +33,10 @@ function toRoom(row: RoomRow): Room {
     passcodeHash: row.passcode_hash,
     aiMode: row.ai_mode === 'opinion' ? 'opinion' : 'chat',
     replyMode: row.reply_mode === 'always' ? 'always' : 'mention',
+    chatSystemPrompt: row.chat_system_prompt,
+    opinionSystemPrompt: row.opinion_system_prompt,
+    chatModel: row.chat_model,
+    opinionModel: row.opinion_model,
     capacity: row.capacity,
     turnLimit: row.turn_limit,
     turnsUsed: row.turns_used,
@@ -44,6 +52,11 @@ export interface CreateRoomInput {
   passcode?: string | null;
   aiMode?: AiMode;
   replyMode?: ReplyMode;
+  /** モードごとの AI の中身。省略または null なら既定 (prompt.ts / .env) を使う */
+  chatSystemPrompt?: string | null;
+  opinionSystemPrompt?: string | null;
+  chatModel?: string | null;
+  opinionModel?: string | null;
   capacity?: number;
   turnLimit?: number;
   expiresInHours?: number;
@@ -60,6 +73,10 @@ export function createRoom(input: CreateRoomInput): Room {
     passcodeHash: input.passcode ? sha256(input.passcode) : null,
     aiMode: input.aiMode ?? defaults.aiMode,
     replyMode: input.replyMode ?? defaults.replyMode,
+    chatSystemPrompt: input.chatSystemPrompt ?? null,
+    opinionSystemPrompt: input.opinionSystemPrompt ?? null,
+    chatModel: input.chatModel ?? null,
+    opinionModel: input.opinionModel ?? null,
     capacity: input.capacity ?? defaults.capacity,
     turnLimit: input.turnLimit ?? defaults.turnLimit,
     turnsUsed: 0,
@@ -71,8 +88,12 @@ export function createRoom(input: CreateRoomInput): Room {
 
   getDb()
     .prepare(
-      `INSERT INTO rooms (id, code, name, passcode_hash, ai_mode, reply_mode, capacity, turn_limit, turns_used, expires_at, created_by, created_at)
-       VALUES (@id, @code, @name, @passcodeHash, @aiMode, @replyMode, @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
+      `INSERT INTO rooms (id, code, name, passcode_hash, ai_mode, reply_mode,
+                           chat_system_prompt, opinion_system_prompt, chat_model, opinion_model,
+                           capacity, turn_limit, turns_used, expires_at, created_by, created_at)
+       VALUES (@id, @code, @name, @passcodeHash, @aiMode, @replyMode,
+               @chatSystemPrompt, @opinionSystemPrompt, @chatModel, @opinionModel,
+               @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
     )
     .run(room);
 
@@ -177,6 +198,11 @@ export interface UpdateRoomInput {
   name?: string;
   aiMode?: AiMode;
   replyMode?: ReplyMode;
+  /** null を渡すと既定に戻る。undefined なら今の値のまま */
+  chatSystemPrompt?: string | null;
+  opinionSystemPrompt?: string | null;
+  chatModel?: string | null;
+  opinionModel?: string | null;
   capacity?: number;
   turnLimit?: number;
 }
@@ -190,12 +216,17 @@ export function updateRoom(id: string, input: UpdateRoomInput): Room | null {
     name: 'name',
     aiMode: 'ai_mode',
     replyMode: 'reply_mode',
+    chatSystemPrompt: 'chat_system_prompt',
+    opinionSystemPrompt: 'opinion_system_prompt',
+    chatModel: 'chat_model',
+    opinionModel: 'opinion_model',
     capacity: 'capacity',
     turnLimit: 'turn_limit',
   };
 
+  // null は「既定に戻す」。undefined (未指定) だけを飛ばす
   const assignments: string[] = [];
-  const values: Array<string | number> = [];
+  const values: Array<string | number | null> = [];
   for (const [key, column] of Object.entries(columns) as Array<[keyof UpdateRoomInput, string]>) {
     const value = input[key];
     if (value === undefined) continue;

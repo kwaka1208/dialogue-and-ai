@@ -66,7 +66,11 @@ function AdminConsole({ session, onSignOut }: AdminConsoleProps) {
       )}
 
       <section className="admin-section">
-        <CreateRoomForm defaults={session.roomDefaults} onCreated={() => void reload()} />
+        <CreateRoomForm
+          defaults={session.roomDefaults}
+          aiDefaults={session.aiDefaults}
+          onCreated={() => void reload()}
+        />
       </section>
 
       {error && <p className="form-error">{error}</p>}
@@ -89,6 +93,7 @@ function AdminConsole({ session, onSignOut }: AdminConsoleProps) {
       {selected && (
         <RoomDetailPanel
           roomId={selected}
+          aiDefaults={session.aiDefaults}
           onRoomChanged={reload}
           onRoomDeleted={() => setSelectedId(null)}
         />

@@ -32,6 +32,55 @@ interface StreamChunk {
 }
 
 /**
+ * 使えるモデルの一覧。管理画面のプルダウンがこれを引く。
+ *
+ * 部屋を作るたびに AI Engine を叩く必要はないので、少しのあいだ覚えておく。
+ * 一覧が増えるのはモデルが追加されたときだけで、数分の遅れは実害がない。
+ */
+const MODEL_CACHE_MS = 5 * 60_000;
+let modelCache: { ids: string[]; fetchedAt: number } | null = null;
+
+/**
+ * チャットに使えないモデルを選択肢から落とす。
+ *
+ * /models は埋め込みや音声認識のモデルも一緒に返すが、レスポンスに種別が付かないので
+ * (id / object / owned_by / created だけ) 名前で見分けるしかない。
+ * 新しい名前のものは漏れるので、絞りすぎずに明らかなものだけを外す。
+ */
+const NOT_FOR_CHAT = /whisper|embedding|(^|[/-])e5([-.]|$)/i;
+
+export async function listModels(): Promise<string[]> {
+  const { token, baseUrl, timeoutMs } = config.ai;
+  if (!token) throw new AiEngineError('SAKURA_AI_TOKEN が未設定です');
+
+  const cached = modelCache;
+  if (cached && Date.now() - cached.fetchedAt < MODEL_CACHE_MS) return cached.ids;
+
+  const res = await fetch(`${baseUrl}/models`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new AiEngineError(
+      `AI Engine が ${res.status} を返しました: ${detail.slice(0, 300)}`,
+      res.status,
+    );
+  }
+
+  const json = (await res.json()) as { data?: Array<{ id?: unknown }> };
+  const ids = (json.data ?? [])
+    .map((model) => model.id)
+    .filter((id): id is string => typeof id === 'string' && id !== '')
+    .filter((id) => !NOT_FOR_CHAT.test(id))
+    .sort((a, b) => a.localeCompare(b));
+
+  modelCache = { ids, fetchedAt: Date.now() };
+  return ids;
+}
+
+/**
  * ストリーミングで応答を受け取り、本文の差分を順に返す。
  * signal で中断でき、それとは別に config.ai.timeoutMs で打ち切る。
  *

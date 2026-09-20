@@ -3,7 +3,7 @@ import { getConnInfo } from '@hono/node-server/conninfo';
 import { streamSSE } from 'hono/streaming';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { config, isAiConfigured } from '../config.js';
+import { config } from '../config.js';
 import { consumeTurn, findRoomByCode, getRoom } from '../repos/rooms.js';
 import {
   DuplicateNameError,
@@ -23,6 +23,7 @@ import {
   toPublic,
 } from '../repos/attachments.js';
 import { startAiResponse, type AiSkipReason } from '../services/ai-responder.js';
+import { isAiAvailableFor } from '../lib/ai-settings.js';
 import { abortRun, activeRun } from '../lib/ai-runs.js';
 import { consume, retryAfterSeconds } from '../lib/rate-limit.js';
 import { AI_HISTORY_LIMIT, mentionsAi } from '../lib/prompt.js';
@@ -124,7 +125,7 @@ roomsRoute.get('/:id', (c) => {
     requiresPasscode: room.passcodeHash !== null,
     aiMode: room.aiMode,
     replyMode: room.replyMode,
-    aiAvailable: isAiConfigured(),
+    aiAvailable: isAiAvailableFor(room),
     closed: isPast(room.expiresAt),
     expiresAt: room.expiresAt,
   });
@@ -412,7 +413,7 @@ function runAi(
   participantId: string,
   beforeStart?: () => void,
 ): 'started' | AiSkipReason {
-  if (!isAiConfigured()) return 'unavailable';
+  if (!isAiAvailableFor(room)) return 'unavailable';
   if (activeRun(room.id)) return 'busy';
   if (!consume('ai_turn', participantId, config.rateLimits.aiTurnsPerMinute)) return 'rate_limited';
   if (!consumeTurn(room.id)) return 'turn_limit';
@@ -420,7 +421,7 @@ function runAi(
   beforeStart?.();
 
   // ここまで来ても、ほぼ同時の呼びかけで先を越されることはありうる
-  if (!startAiResponse(room.id, room.aiMode)) return 'busy';
+  if (!startAiResponse(room)) return 'busy';
 
   return 'started';
 }

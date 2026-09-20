@@ -1,6 +1,18 @@
 /** server/src/routes/admin.ts が返す形に対応する */
 import type { AiMode, Message, Participant, ReplyMode } from '../room/types.ts';
 
+/** モードごとの、部屋で上書きしなかったときの中身。/session が返す */
+export interface AiModeDefaults {
+  systemPrompt: string;
+  /** .env で決まっているモデル。未設定なら null */
+  model: string | null;
+}
+
+export interface AiDefaults {
+  chat: AiModeDefaults;
+  opinion: AiModeDefaults;
+}
+
 export interface AdminRoom {
   id: string;
   /** 子どもがトップページで入れる6桁の数字 */
@@ -8,6 +20,11 @@ export interface AdminRoom {
   name: string;
   aiMode: AiMode;
   replyMode: ReplyMode;
+  /** モードごとの system prompt とモデル。null なら既定を使う */
+  chatSystemPrompt: string | null;
+  opinionSystemPrompt: string | null;
+  chatModel: string | null;
+  opinionModel: string | null;
   capacity: number;
   turnLimit: number;
   turnsUsed: number;
@@ -73,6 +90,8 @@ export interface AdminSession {
   /** すべての部屋を管理でき、アカウントの登録もできる */
   isSuper: boolean;
   aiConfigured: boolean;
+  /** 部屋で上書きしなかったときに使われる system prompt とモデル */
+  aiDefaults: AiDefaults;
   roomDefaults: {
     capacity: number;
     expiresInHours: number;
@@ -91,6 +110,11 @@ export interface CreateRoomInput {
   passcode?: string;
   aiMode?: AiMode;
   replyMode?: ReplyMode;
+  /** 空文字または null を送ると既定のまま */
+  chatSystemPrompt?: string | null;
+  opinionSystemPrompt?: string | null;
+  chatModel?: string | null;
+  opinionModel?: string | null;
   capacity?: number;
   turnLimit?: number;
   expiresInHours?: number;
@@ -100,6 +124,11 @@ export interface UpdateRoomInput {
   name?: string;
   aiMode?: AiMode;
   replyMode?: ReplyMode;
+  /** 空文字または null を送ると既定に戻る */
+  chatSystemPrompt?: string | null;
+  opinionSystemPrompt?: string | null;
+  chatModel?: string | null;
+  opinionModel?: string | null;
   capacity?: number;
   turnLimit?: number;
 }

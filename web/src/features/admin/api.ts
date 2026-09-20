@@ -44,6 +44,14 @@ export function session(): Promise<AdminSession> {
   return adminFetch('/session');
 }
 
+/**
+ * 部屋に指定できるモデルの一覧。
+ * AI Engine から取れなかったときは models が空で、error に理由が入る。
+ */
+export function listModels(): Promise<{ models: string[]; error?: string }> {
+  return adminFetch('/models');
+}
+
 export function listRooms(): Promise<{ rooms: RoomSummary[] }> {
   return adminFetch('/rooms');
 }

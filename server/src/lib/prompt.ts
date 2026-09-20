@@ -135,15 +135,21 @@ function describeAttachments(payloads: AttachmentPayload[]): string {
     .join('');
 }
 
-/** 部屋の履歴を、モードに合わせて OpenAI 互換の messages に変換する */
+/**
+ * 部屋の履歴を、モードに合わせて OpenAI 互換の messages に変換する。
+ *
+ * systemPrompt は部屋ごとに差し替えられる (管理画面で編集できる)。
+ * 省略したときだけ、そのモードの既定を使う。
+ */
 export function buildChatMessages(
   history: Message[],
   attachments: AttachmentPayloads = new Map(),
   mode: AiMode = 'chat',
+  systemPrompt: string = systemPromptFor(mode),
 ): ChatMessage[] {
   return mode === 'opinion'
-    ? buildOpinionMessages(history, attachments)
-    : buildConversationMessages(history, attachments);
+    ? buildOpinionMessages(history, attachments, systemPrompt)
+    : buildConversationMessages(history, attachments, systemPrompt);
 }
 
 /**
@@ -153,8 +159,9 @@ export function buildChatMessages(
 function buildConversationMessages(
   history: Message[],
   attachments: AttachmentPayloads,
+  systemPrompt: string,
 ): ChatMessage[] {
-  const messages: ChatMessage[] = [{ role: 'system', content: KIDS_SYSTEM_PROMPT }];
+  const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt }];
 
   for (const message of history) {
     // 入退室のお知らせはトークンの無駄なので送らない
@@ -232,8 +239,12 @@ function segmentBody(segment: Segment): string {
  * assistant として置く。いちばん最後の区間が「今回みてもらうところ」になる。
  * こうしないと、意見が毎回まっさらから始まってしまう。
  */
-function buildOpinionMessages(history: Message[], attachments: AttachmentPayloads): ChatMessage[] {
-  const messages: ChatMessage[] = [{ role: 'system', content: OPINION_SYSTEM_PROMPT }];
+function buildOpinionMessages(
+  history: Message[],
+  attachments: AttachmentPayloads,
+  systemPrompt: string,
+): ChatMessage[] {
+  const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt }];
 
   let segment = emptySegment();
   let opinions = 0;

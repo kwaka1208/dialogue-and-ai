@@ -2,6 +2,9 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { z } from 'zod';
 import { config, isAiConfigured } from '../config.js';
+import { AiEngineError, listModels } from '../lib/ai-client.js';
+import { defaultModelFor } from '../lib/ai-settings.js';
+import { systemPromptFor } from '../lib/prompt.js';
 import { adminAuth, type AdminEnv } from '../middleware/admin.js';
 import { adminAccountsRoute } from './admin-accounts.js';
 import { getAccount } from '../repos/admin-accounts.js';
@@ -23,6 +26,29 @@ import type { Participant, Room } from '../types.js';
 
 /** 管理画面でログを読むときの上限。エクスポートはこれとは別に全件返す */
 const LOG_LIMIT = 500;
+
+/** system prompt の長さの上限。既定が2千字ほどなので、書き足す余地を見て倍ほど取る */
+const SYSTEM_PROMPT_MAX = 4000;
+
+/**
+ * 部屋ごとの system prompt。
+ * 空文字は「既定に戻す」の意味なので、DBに書く前に null へ寄せる。
+ */
+const systemPromptField = z
+  .string()
+  .max(SYSTEM_PROMPT_MAX)
+  .transform((value) => (value.trim() === '' ? null : value))
+  .nullable()
+  .optional();
+
+/** 部屋ごとのモデルID。こちらも空文字なら既定 (.env) に戻す */
+const modelField = z
+  .string()
+  .trim()
+  .max(200)
+  .transform((value) => (value === '' ? null : value))
+  .nullable()
+  .optional();
 
 /** 合言葉のハッシュは管理画面にも返さない */
 function publicRoom(room: Room): Omit<Room, 'passcodeHash'> & {
@@ -68,6 +94,10 @@ const createRoomSchema = z.object({
     .optional(),
   aiMode: z.enum(['chat', 'opinion']).optional(),
   replyMode: z.enum(['mention', 'always']).optional(),
+  chatSystemPrompt: systemPromptField,
+  opinionSystemPrompt: systemPromptField,
+  chatModel: modelField,
+  opinionModel: modelField,
   capacity: z.number().int().min(1).max(100).optional(),
   turnLimit: z.number().int().min(1).max(10_000).optional(),
   expiresInHours: z.number().min(0.5).max(72).optional(),
@@ -79,6 +109,10 @@ const updateRoomSchema = z
     name: z.string().trim().min(1).max(40).optional(),
     aiMode: z.enum(['chat', 'opinion']).optional(),
     replyMode: z.enum(['mention', 'always']).optional(),
+    chatSystemPrompt: systemPromptField,
+    opinionSystemPrompt: systemPromptField,
+    chatModel: modelField,
+    opinionModel: modelField,
     capacity: z.number().int().min(1).max(100).optional(),
     turnLimit: z.number().int().min(1).max(10_000).optional(),
   })
@@ -97,8 +131,35 @@ adminRoute.get('/session', (c) => {
     isSuper: admin.isSuper,
     aiConfigured: isAiConfigured(),
     roomDefaults: config.roomDefaults,
+    // 部屋で上書きしなかったときに使われる中身。管理画面が textarea の下敷きに使う
+    aiDefaults: {
+      chat: { systemPrompt: systemPromptFor('chat'), model: defaultModelFor('chat') ?? null },
+      opinion: {
+        systemPrompt: systemPromptFor('opinion'),
+        model: defaultModelFor('opinion') ?? null,
+      },
+    },
     rateLimits: config.rateLimits,
   });
+});
+
+/**
+ * 部屋に指定できるモデルの一覧。AI Engine の /models をそのまま見せる。
+ *
+ * 取れなくても画面を止めたくないので、失敗は 200 + 空配列で返す。
+ * 管理画面はそのときモデル名を直接打てる形に切り替える。
+ */
+adminRoute.get('/models', async (c) => {
+  try {
+    return c.json({ models: await listModels() });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error(`[admin] モデル一覧を取れませんでした: ${detail}`);
+    return c.json({
+      models: [],
+      error: error instanceof AiEngineError && !config.ai.token ? 'not_configured' : 'unavailable',
+    });
+  }
 });
 
 // アカウントの登録・削除。中でさらに特権管理者だけに絞っている

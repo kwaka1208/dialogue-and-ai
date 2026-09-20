@@ -19,9 +19,9 @@ import { AI_HISTORY_LIMIT, buildChatMessages, stripSpeakerPrefix } from '../lib/
 import { createPlainTextFilter } from '../lib/plain-text.js';
 import { startRun, endRun, type AiRun } from '../lib/ai-runs.js';
 import { publish } from '../lib/room-hub.js';
-import { config } from '../config.js';
+import { resolveAiSettings } from '../lib/ai-settings.js';
 import { buildAttachmentPayloads } from './attachment-context.js';
-import type { AiMode, Message } from '../types.js';
+import type { AiMode, Message, Room } from '../types.js';
 
 /**
  * AIを動かせなかった理由。フロントで子ども向けの文言に直す。
@@ -39,7 +39,8 @@ export type AiSkipReason =
  * 応答を開始する。開始できたら true。
  * 生成そのものは待たずに進むので、呼び出し側は POST の応答をすぐ返せる。
  */
-export function startAiResponse(roomId: string, mode: AiMode): boolean {
+export function startAiResponse(room: Room, mode: AiMode = room.aiMode): boolean {
+  const roomId = room.id;
   // 履歴は空のプレースホルダを作る前に読む。自分自身を履歴に含めないため
   const history = listMessages(roomId, AI_HISTORY_LIMIT);
   const placeholder = insertMessage({ roomId, kind: 'ai', body: '' });
@@ -51,19 +52,15 @@ export function startAiResponse(roomId: string, mode: AiMode): boolean {
   }
 
   publish(roomId, { type: 'ai_start', messageId: run.messageId });
-  void generate(roomId, run, history, mode);
+  void generate(room, run, history, mode);
   return true;
 }
 
 /** 先頭が「なまえ:」かどうかを決めるために溜めておく文字数。名前は最大16文字まで見る */
 const LEAD_BUFFER = 24;
 
-async function generate(
-  roomId: string,
-  run: AiRun,
-  history: Message[],
-  mode: AiMode,
-): Promise<void> {
+async function generate(room: Room, run: AiRun, history: Message[], mode: AiMode): Promise<void> {
+  const roomId = room.id;
   // 先頭の「なまえ:」を落とすため、最初だけ少し溜めてから流しはじめる
   let lead = '';
   let leadFlushed = false;
@@ -97,9 +94,9 @@ async function generate(
   try {
     // 添付の読み込み (画像の base64 化) はここで一度だけ
     const attachments = await buildAttachmentPayloads(history);
-    const request = buildChatMessages(history, attachments, mode);
-    // 意見モードだけ別のモデルを指定できる。未設定なら既定のモデルに落ちる
-    const model = mode === 'opinion' ? config.ai.opinionModel : config.ai.model;
+    // system prompt もモデルも、部屋の設定があればそちらが勝つ。無ければ .env と既定
+    const { systemPrompt, model } = resolveAiSettings(room, mode);
+    const request = buildChatMessages(history, attachments, mode, systemPrompt);
 
     for await (const delta of streamChatCompletion(request, run.controller.signal, model)) {
       if (!leadFlushed) {

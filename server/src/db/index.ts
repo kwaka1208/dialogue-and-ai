@@ -72,6 +72,11 @@ function addMissingColumns(db: Database.Database): void {
     { table: 'rooms', column: 'code', definition: 'TEXT' },
     // フェーズ11: 部屋でのAIの立ち位置。既存の部屋は今までどおりの会話モードになる
     { table: 'rooms', column: 'ai_mode', definition: "TEXT NOT NULL DEFAULT 'chat'" },
+    // フェーズ12: 部屋ごとの system prompt とモデル。NULL のままなら既定を使う
+    { table: 'rooms', column: 'chat_system_prompt', definition: 'TEXT' },
+    { table: 'rooms', column: 'opinion_system_prompt', definition: 'TEXT' },
+    { table: 'rooms', column: 'chat_model', definition: 'TEXT' },
+    { table: 'rooms', column: 'opinion_model', definition: 'TEXT' },
   ];
 
   for (const { table, column, definition } of additions) {

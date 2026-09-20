@@ -39,6 +39,14 @@ export interface Room {
   passcodeHash: string | null;
   aiMode: AiMode;
   replyMode: ReplyMode;
+  /** 会話モードの system prompt。null なら既定 (KIDS_SYSTEM_PROMPT) を使う */
+  chatSystemPrompt: string | null;
+  /** 意見モードの system prompt。null なら既定 (OPINION_SYSTEM_PROMPT) を使う */
+  opinionSystemPrompt: string | null;
+  /** 会話モードで使うモデルID。null なら .env の SAKURA_AI_MODEL */
+  chatModel: string | null;
+  /** 意見モードで使うモデルID。null なら .env の SAKURA_AI_MODEL_OPINION */
+  opinionModel: string | null;
   capacity: number;
   turnLimit: number;
   turnsUsed: number;

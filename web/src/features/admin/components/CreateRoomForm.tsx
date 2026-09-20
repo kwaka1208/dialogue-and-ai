@@ -1,14 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import * as api from '../api.ts';
 import { ApiError } from '../../../lib/api.ts';
-import type { AdminSession, RoomSummary } from '../types.ts';
+import { useModels } from '../hooks/useModels.ts';
+import { AiBrainFields } from './AiBrainFields.tsx';
+import type { AdminSession, AiDefaults, RoomSummary } from '../types.ts';
 
 interface CreateRoomFormProps {
   defaults: AdminSession['roomDefaults'];
+  /** 部屋で上書きしなかったときに使われる system prompt とモデル */
+  aiDefaults: AiDefaults;
   onCreated: (room: RoomSummary | null) => void;
 }
 
-export function CreateRoomForm({ defaults, onCreated }: CreateRoomFormProps) {
+export function CreateRoomForm({ defaults, aiDefaults, onCreated }: CreateRoomFormProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [passcode, setPasscode] = useState('');
@@ -17,8 +21,14 @@ export function CreateRoomForm({ defaults, onCreated }: CreateRoomFormProps) {
   const [expiresInHours, setExpiresInHours] = useState(String(defaults.expiresInHours));
   const [aiMode, setAiMode] = useState(defaults.aiMode);
   const [replyMode, setReplyMode] = useState(defaults.replyMode);
+  // どれも空文字が「既定のまま」。モードを切り替えても、書いたものは消さずに取っておく
+  const [chatModel, setChatModel] = useState('');
+  const [opinionModel, setOpinionModel] = useState('');
+  const [chatPrompt, setChatPrompt] = useState('');
+  const [opinionPrompt, setOpinionPrompt] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const models = useModels();
 
   const handleSubmit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -33,12 +43,20 @@ export function CreateRoomForm({ defaults, onCreated }: CreateRoomFormProps) {
         aiMode,
         // 意見モードでは使わない値なので送らない
         replyMode: aiMode === 'chat' ? replyMode : undefined,
+        chatModel,
+        opinionModel,
+        chatSystemPrompt: chatPrompt,
+        opinionSystemPrompt: opinionPrompt,
         capacity: Number(capacity),
         turnLimit: Number(turnLimit),
         expiresInHours: Number(expiresInHours),
       });
       setName('');
       setPasscode('');
+      setChatModel('');
+      setOpinionModel('');
+      setChatPrompt('');
+      setOpinionPrompt('');
       setOpen(false);
       onCreated(null);
     } catch (err) {
@@ -163,6 +181,29 @@ export function CreateRoomForm({ defaults, onCreated }: CreateRoomFormProps) {
             <option value="always">毎回返す</option>
           </select>
         </label>
+      )}
+
+      {/* いま選んでいるモードのぶんだけ出す。もう一方はあとから設定タブで変えられる */}
+      {aiMode === 'chat' ? (
+        <AiBrainFields
+          mode="chat"
+          defaults={aiDefaults.chat}
+          options={models}
+          model={chatModel}
+          onModelChange={setChatModel}
+          prompt={chatPrompt}
+          onPromptChange={setChatPrompt}
+        />
+      ) : (
+        <AiBrainFields
+          mode="opinion"
+          defaults={aiDefaults.opinion}
+          options={models}
+          model={opinionModel}
+          onModelChange={setOpinionModel}
+          prompt={opinionPrompt}
+          onPromptChange={setOpinionPrompt}
+        />
       )}
 
       {error && <p className="form-error">{error}</p>}

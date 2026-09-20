@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS rooms (
   passcode_hash TEXT,                      -- NULL可。設定時は4桁の合言葉のハッシュ
   ai_mode       TEXT NOT NULL DEFAULT 'chat',     -- 'chat' | 'opinion'
   reply_mode    TEXT NOT NULL,             -- 'mention' | 'always' (ai_mode='chat' のときだけ効く)
+  -- AIの中身の差し替え。いずれも NULL 可で、NULL なら既定 (prompt.ts / .env) を使う
+  chat_system_prompt    TEXT,              -- 会話モードの system prompt
+  opinion_system_prompt TEXT,              -- 意見モードの system prompt
+  chat_model            TEXT,              -- 会話モードで使うモデルID
+  opinion_model         TEXT,              -- 意見モードで使うモデルID
   capacity      INTEGER NOT NULL,
   turn_limit    INTEGER NOT NULL,
   turns_used    INTEGER NOT NULL DEFAULT 0,

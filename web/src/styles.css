@@ -145,6 +145,14 @@ body {
   border-color: var(--color-accent);
 }
 
+/* system prompt のような長い入力。枠は1行の入力と揃えつつ、上下に余白と行間を足す */
+textarea.field-input {
+  padding: 0.6rem 0.9rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  resize: vertical;
+}
+
 .field-hint {
   font-size: 0.9rem;
   color: var(--color-muted);

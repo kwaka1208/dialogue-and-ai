@@ -98,6 +98,16 @@ npm run room:new -w server -- --name "テストのへや" --passcode 1234
 | `--opinion` | 付けると意見モードの部屋になる。省略すると会話モード |
 | `--always` | 会話モードのときだけ効く。付けると `replyMode: always`（毎回AIが返す） |
 | `--owner` | 所有者にする管理者のメールアドレス。省略すると所有者なしになり、管理画面では特権管理者にしか見えない |
+| `--model` | この部屋で使うモデルID。省略すると `.env` の既定を使う |
+| `--prompt-file` | system prompt を書いたファイルのパス。省略すると `prompt.ts` の既定を使う |
+
+`--model` と `--prompt-file` は、いま選んでいるモード（`--opinion` の有無）のぶんに入る。
+もう一方のモードは既定のままなので、両方を変えたいときは管理画面から設定する。
+
+```bash
+# 意見モードの部屋を、別のモデルと自前のプロンプトで作る
+npm run room:new -w server -- --opinion --model preview/gemma-4-31B-it --prompt-file ./my-prompt.txt
+```
 
 APIを直接叩くこともできるが、管理APIは cookie のセッションが要る。ブラウザで一度ログインしてから
 開発者ツールの Network でリクエストをコピーするのが早い。
