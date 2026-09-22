@@ -83,7 +83,7 @@ sudo chmod 600 .env
 sudoedit /opt/dialogue-and-ai/.env   # または sudo nano /opt/dialogue-and-ai/.env
 ```
 
-本番で埋めるのはこの5つ。
+本番で埋めるのはこの6つ。
 
 ```env
 NODE_ENV=production
@@ -91,10 +91,19 @@ SAKURA_AI_TOKEN=（AI Engine のトークン）
 GOOGLE_CLIENT_ID=（下の「Googleログインの用意」で作る）
 SUPER_ADMIN_EMAILS=（特権管理者のメールアドレス。カンマ区切り）
 DATA_DIR=/var/lib/dialogue-and-ai
+SITE_URL=https://（公開ドメイン）
 ```
 
 `SUPER_ADMIN_EMAILS` に書いた人だけが、最初に管理画面へ入れる。ここから他の管理者を登録していく
 ので、空のままだと誰も入れない（本番では起動時に弾く）。
+
+`SITE_URL` は、URLを貼ったときのプレビュー（OGP）に使う公開URL。**フロントのビルドのときにHTMLへ
+埋まる**ので、上の順番どおり進めたならビルドのほうが先に終わっている。`.env` に書いたら、もう一度
+ビルドし直すこと。空のままだと `og:url` と `og:image` がHTMLに出ず、プレビューは出ない（画面は動く）。
+
+```bash
+sudo npm run build   # .env に SITE_URL を書いたあと、もう一度
+```
 
 それと、`UPLOAD_DIR` の行を消す。
 

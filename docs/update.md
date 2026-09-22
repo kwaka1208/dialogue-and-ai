@@ -131,6 +131,8 @@ sudo systemctl restart dialogue-and-ai
 - **`UPLOAD_DIR` は足さない。** 相対パスのまま入るとリポジトリの中を指し、`ProtectSystem=strict`
   に阻まれて起動時に `ENOENT` で落ちる（[`deploy.md` の2章](./deploy.md#env-を書く)）
 - **所有者と権限を保つ。** `sudoedit` なら変わらないが、`cp` や `tee` で作り直したときは戻す
+- **`SITE_URL` を足したときは再起動では足りない。** この項目だけはフロントのビルドのときに
+  HTMLへ埋まるので、`make update`（＝ビルドし直し）まで流さないと反映されない
 - **フェーズ9への更新では `ADMIN_TOKEN` が使えなくなる。** 管理画面はGoogleログインに変わった。
   `GOOGLE_CLIENT_ID` と `SUPER_ADMIN_EMAILS` を足してから再起動しないと、起動時に弾かれる。
   用意のしかたは [`deploy.md` の2章](./deploy.md#googleログインの用意)。`ADMIN_TOKEN` の行は

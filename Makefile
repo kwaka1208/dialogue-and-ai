@@ -33,7 +33,9 @@
 #   SAKURA_AI_TOKEN             install で .env を作るときに使う
 #   GOOGLE_CLIENT_ID
 #   SUPER_ADMIN_EMAILS
-#   DOMAIN CERTBOT_EMAIL        HTTPS の終端で使う
+#   DOMAIN CERTBOT_EMAIL        HTTPS の終端で使う。DOMAIN は install のときに
+#                               SITE_URL=https://$(DOMAIN) として .env にも書く
+#                               (URLを貼ったときのプレビュー用)
 #   REPO BRANCH SERVICE         ふだんは書かなくてよい
 #                               (BRANCH は install / update のたびに指定してもよい)
 #
@@ -216,6 +218,8 @@ help:
 	@echo ''
 	@echo '  make install HOST=... SAKURA_AI_TOKEN=... GOOGLE_CLIENT_ID=... SUPER_ADMIN_EMAILS=...'
 	@echo '                        新規インストール。すでに入っていれば何もせず止まる'
+	@echo '                        DOMAIN= も付けると SITE_URL を .env に書く'
+	@echo '                        (URLを貼ったときのプレビュー。あとから足すと要ビルド)'
 	@echo '  make update  HOST=...  控えを取ってから git pull → build → 再起動'
 	@echo ''
 	@echo '  どちらも BRANCH= で入れるブランチを選べる (既定: $(BRANCH))'

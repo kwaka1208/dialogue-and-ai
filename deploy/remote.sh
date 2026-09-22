@@ -108,6 +108,20 @@ installed() {
 	[ -e "$APP_DIR" ] || [ -e "$UNIT" ]
 }
 
+# フロントのビルドは .env の SITE_URL を読んで og:url / og:image に埋める。
+# 空のままだとタグごと落ちるので、リンクを貼ってもプレビュー (OGP) が出ない。
+# ビルドしたあとでは気づきにくいため、流す前に言う。止めはしない (画面自体は動く)
+warn_if_no_site_url() {
+	local env_file="$APP_DIR/.env"
+	[ -f "$env_file" ] || return 0
+	local val
+	val="$(sed -n -E 's/^[[:space:]]*SITE_URL[[:space:]]*=[[:space:]]*//p' "$env_file" | tail -n 1)"
+	if [ -z "$val" ]; then
+		warn "$env_file に SITE_URL がありません。URLを貼ってもプレビュー (OGP) が出ません"
+		info "足すなら: SITE_URL=https://<公開ドメイン> を書いて、もう一度 update (ビルドし直しが要る)"
+	fi
+}
+
 # 起動を待つ。上がりきる前に curl を打つと落ちたように見えるので、少し粘る
 wait_health() {
 	local i out
@@ -179,14 +193,18 @@ cmd_install() {
 	fi
 	info "$(git_in_app rev-parse --short HEAD) $(git_in_app log -1 --format=%s)"
 
+	# .env はビルドより先に書く。フロントのビルドが SITE_URL を読んで
+	# og:url / og:image に埋めるので、後に回すと初回だけプレビューが出ないHTMLができる
+	install_env
+
 	step "依存を入れる (npm ci)"
 	npm_in_app ci
 	build_native_if_needed
 
 	step "ビルドする (npm run build)"
+	warn_if_no_site_url
 	npm_in_app run build
 
-	install_env
 	install_service
 
 	step "動いているか見る"
@@ -291,6 +309,13 @@ install_env() {
 	set_env GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID" "$env_file"
 	set_env SUPER_ADMIN_EMAILS "$SUPER_ADMIN_EMAILS" "$env_file"
 
+	# 公開URL。フロントのビルドで og:url / og:image に埋める。
+	# DOMAIN が渡されているなら書いておく (HTTPS化は後からでも、URL自体は変わらない)。
+	# 渡されていなければ書かない。ビルドの前に warn_if_no_site_url が言う
+	if [ -n "$DOMAIN" ]; then
+		set_env SITE_URL "https://$DOMAIN" "$env_file"
+	fi
+
 	# UPLOAD_DIR は消す。相対パスのまま残るとリポジトリの中を指し、
 	# ProtectSystem=strict に阻まれて起動時に ENOENT で落ちる
 	sed -i '/^UPLOAD_DIR=/d' "$env_file"
@@ -392,6 +417,7 @@ apply_build() {
 	fi
 
 	step "ビルドする (npm run build)"
+	warn_if_no_site_url
 	npm_in_app run build
 }
 
