@@ -321,8 +321,10 @@ Googleアカウントでのログインが必須で、入れるのはサーバ�
 `/admin/help` には画面写真を8枚入れてある（`web/src/features/help/screenshots/`）。
 
 置き場所に決まりがある。本番で静的配信されるのは `/assets/` の下だけ（`server/src/index.ts` の
-`serveStatic`）なので、`web/public/` に置くと `index.html` にフォールバックして本番でだけ壊れる。
-TSXから `import` して Vite に `dist/assets/` へ出させること。
+`serveStatic`）なので、`web/public/` の直下に置くと `index.html` にフォールバックして本番でだけ壊れる。
+TSXから `import` して Vite に `dist/assets/` へ出させること。`web/public/assets/` に置けば配信はされるが、
+ファイル名にハッシュが付かないので、差し替えても古いものがキャッシュに残る。ここを使うのは、
+OGP画像のようにURLを固定したいものだけにする。
 
 撮り直すときは、実データが写らないよう使い捨てのDB（`DATA_DIR` を別に向ける）で撮る。写真の中の
 メールアドレスと名前はダミー。ログの「要確認」の写真は、説明のために当たり障りのない語を
@@ -333,6 +335,24 @@ TSXから `import` して Vite に `dist/assets/` へ出させること。
 同じファイルを [`USAGE.md`](./USAGE.md) からも相対パスで参照している。子ども側の画面
 （`11-` から `16-`）は USAGE.md だけで使う。
 
+## リンクのプレビュー (OGP)
+
+LINEやSlackにURLを貼ったときに出るカードの設定。タグは `web/index.html` に直接書いてある。画像は
+`web/public/assets/` の3枚（`ogp.png` 1200×630、`favicon.png`、`apple-touch-icon.png`）で、
+ビルドすると `dist/assets/` に入り、既存の `/assets/` の配信にそのまま乗る。
+
+`og:image` は絶対URLでないとどのサービスもプレビューを出さないが、ドメインは置き場所ごとに違う。
+`.env` の `SITE_URL` をフロントのビルド時に読んで、`index.html` の `%SITE_URL%` を埋めている
+（`web/vite.config.ts`）。未設定なら相対パスのまま残るので、プレビューが出ないだけで画面は動く。
+`.env` はリポジトリ直下の1つだけなので、Vite には `loadEnv(mode, '..', ['SITE_URL'])` で親を読ませている。
+読むのは `SITE_URL` だけで、ほかの環境変数はフロントに混ざらない。
+
+`og:url` は書いていない。部屋のURLは渡した相手だけが知っているものなので、ページごとの絶対URLを
+HTMLに焼き付けない。タグは全ページ共通で、部屋の名前も番号も中身も出ない。
+
+`noindex, nofollow` とは矛盾しない。検索に載せないことと、URLを渡した相手のアプリでカードが出ることは
+別の話で、SNSのクローラーはこの指定を見ない。
+
 ## 本番に置く
 
 手順は [`docs/deploy.md`](./docs/deploy.md) にまとめてある。1コア/1GB の Ubuntu 1台に、
@@ -342,6 +362,9 @@ TSXから `import` して Vite に `dist/assets/` へ出させること。
 npm ci && npm run build   # web/dist と server/dist を作る
 npm start                 # node server/dist/index.js
 ```
+
+`SITE_URL` を `.env` に書いてからビルドすること。ビルドのときにHTMLへ埋めるので、あとから
+`.env` だけ直しても反映されない。
 
 `NODE_ENV=production` にすると、cookie に `Secure` が付き、`GOOGLE_CLIENT_ID` と
 `SAKURA_AI_TOKEN` の欠け、`SUPER_ADMIN_EMAILS` が空のままなのを起動時に弾く。フロントの静的ファイルは同じポートから BFF が配るので、
