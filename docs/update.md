@@ -11,7 +11,7 @@
 ```
 
 `git pull` は `.env` と `dist/` と `data/` に触らない（すべて `.gitignore` 済み）。アプリだけが
-入れ替わり、DBと添付ファイルは `/var/lib/kids-group-chat` に残る。
+入れ替わり、DBと添付ファイルは `/var/lib/dialogue-and-ai` に残る。
 
 ---
 
@@ -70,13 +70,13 @@ git push origin main
 
 ```bash
 ssh （サーバー）
-sudo /opt/kids-group-chat/deploy/backup.sh
+sudo /opt/dialogue-and-ai/deploy/backup.sh
 ```
 
 いまのコミットも控えておく。戻すときにこれが要る。
 
 ```bash
-cd /opt/kids-group-chat
+cd /opt/dialogue-and-ai
 sudo git rev-parse --short HEAD    # 例: 6ae87f1 → メモしておく
 ```
 
@@ -85,11 +85,11 @@ sudo git rev-parse --short HEAD    # 例: 6ae87f1 → メモしておく
 ## 4. 反映する
 
 ```bash
-cd /opt/kids-group-chat
+cd /opt/dialogue-and-ai
 sudo git pull
 sudo npm ci
 sudo npm run build
-sudo systemctl restart kids-group-chat
+sudo systemctl restart dialogue-and-ai
 ```
 
 それぞれ何のためにあるか。
@@ -122,8 +122,8 @@ sudo git diff 6ae87f1 HEAD --stat -- package-lock.json
 
 ```bash
 sudo git diff 6ae87f1 HEAD -- .env.example
-sudoedit /opt/kids-group-chat/.env
-sudo systemctl restart kids-group-chat
+sudoedit /opt/dialogue-and-ai/.env
+sudo systemctl restart dialogue-and-ai
 ```
 
 3つ気をつける。
@@ -137,9 +137,9 @@ sudo systemctl restart kids-group-chat
   読まれなくなるので、消してよい
 
 ```bash
-sudo chown kidschat:kidschat /opt/kids-group-chat/.env
-sudo chmod 600 /opt/kids-group-chat/.env
-ls -l /opt/kids-group-chat/.env
+sudo chown kidschat:kidschat /opt/dialogue-and-ai/.env
+sudo chmod 600 /opt/dialogue-and-ai/.env
+ls -l /opt/dialogue-and-ai/.env
 ```
 
 DBの列を足す変更は、起動時に `server/src/db/index.ts` が流すので、手でまわすものは無い。
@@ -155,9 +155,9 @@ DBの列を足す変更は、起動時に `server/src/db/index.ts` が流すの�
 ## 6. 反映されたか確かめる
 
 ```bash
-systemctl status kids-group-chat
+systemctl status dialogue-and-ai
 curl -s localhost:8787/api/health
-sudo journalctl -u kids-group-chat -n 30 --no-pager
+sudo journalctl -u dialogue-and-ai -n 30 --no-pager
 ```
 
 `{"ok":true,"aiConfigured":true,...}` が返れば起動している。`aiConfigured` が false なら
@@ -188,12 +188,12 @@ curl -s https://kids.example.com/api/health
 アプリを前のコミットに戻して、同じように作り直す。
 
 ```bash
-cd /opt/kids-group-chat
+cd /opt/dialogue-and-ai
 sudo git log --oneline -5
 sudo git reset --hard 6ae87f1     # 3章で控えたコミット
 sudo npm ci
 sudo npm run build
-sudo systemctl restart kids-group-chat
+sudo systemctl restart dialogue-and-ai
 ```
 
 `npm ci` は、依存が変わる更新を戻すときだけ要る（4章と同じ判断）。
@@ -226,5 +226,5 @@ sudo systemctl restart kids-group-chat
 ほかの症状は [`deploy.md` の8章](./deploy.md#8-困ったときに見る場所)にまとめてある。
 
 ```bash
-sudo journalctl -u kids-group-chat -f
+sudo journalctl -u dialogue-and-ai -f
 ```

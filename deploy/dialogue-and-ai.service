@@ -1,12 +1,12 @@
-# /etc/systemd/system/kids-group-chat.service
+# /etc/systemd/system/dialogue-and-ai.service
 #
 # 置き場所とユーザーは docs/deploy.md の手順に合わせている。
-#   アプリ: /opt/kids-group-chat   (デプロイで入れ替わる。サービスからは読むだけ)
-#   データ: /var/lib/kids-group-chat (DBと添付ファイル。StateDirectory が用意する)
+#   アプリ: /opt/dialogue-and-ai   (デプロイで入れ替わる。サービスからは読むだけ)
+#   データ: /var/lib/dialogue-and-ai (DBと添付ファイル。StateDirectory が用意する)
 
 [Unit]
-Description=kids-group-chat BFF
-Documentation=https://github.com/kwaka1208/dojo-agent
+Description=dialogue-and-ai BFF
+Documentation=https://github.com/kwaka1208/dialogue-and-ai
 After=network-online.target
 Wants=network-online.target
 
@@ -14,7 +14,7 @@ Wants=network-online.target
 Type=simple
 User=kidschat
 Group=kidschat
-WorkingDirectory=/opt/kids-group-chat
+WorkingDirectory=/opt/dialogue-and-ai
 ExecStart=/usr/bin/node server/dist/index.js
 
 # .env にも書くが、書き忘れると cookie の secure が付かず秘密の必須チェックも走らない。
@@ -23,8 +23,8 @@ Environment=NODE_ENV=production
 # 1コア1GBのサーバーなので、ヒープが膨らんでスワップに落ちる前に GC させる
 Environment=NODE_OPTIONS=--max-old-space-size=320
 
-# /var/lib/kids-group-chat を作り、所有者を kidschat にする。.env の DATA_DIR もここを指す
-StateDirectory=kids-group-chat
+# /var/lib/dialogue-and-ai を作り、所有者を kidschat にする。.env の DATA_DIR もここを指す
+StateDirectory=dialogue-and-ai
 StateDirectoryMode=0750
 
 Restart=always
@@ -35,7 +35,7 @@ TimeoutStopSec=15
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=kids-group-chat
+SyslogIdentifier=dialogue-and-ai
 
 # 触れる範囲を絞る。書けるのは StateDirectory だけ
 NoNewPrivileges=true

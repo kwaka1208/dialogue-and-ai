@@ -1,4 +1,4 @@
-# kids-group-chat
+# dialogue-and-ai
 
 子どもたちが、URLひとつで入れるチャットの部屋。その部屋にAIが同席する。
 
@@ -356,7 +356,7 @@ HTMLに焼き付けない。タグは全ページ共通で、部屋の名前も�
 ## 本番に置く
 
 手順は [`docs/deploy.md`](./docs/deploy.md) にまとめてある。1コア/1GB の Ubuntu 1台に、
-アプリを `/opt/kids-group-chat`、データを `/var/lib/kids-group-chat` に置く形。
+アプリを `/opt/dialogue-and-ai`、データを `/var/lib/dialogue-and-ai` に置く形。
 
 ```bash
 npm ci && npm run build   # web/dist と server/dist を作る

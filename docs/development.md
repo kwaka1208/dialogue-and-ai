@@ -17,8 +17,8 @@ DBは SQLite なので、別に立てるものは無い。AI Engine のトーク
 ## 2. 初回セットアップ
 
 ```bash
-git clone https://github.com/kwaka1208/dojo-agent.git
-cd dojo-agent
+git clone https://github.com/kwaka1208/dialogue-and-ai.git
+cd dialogue-and-ai
 npm install
 cp .env.example .env
 ```

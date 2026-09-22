@@ -1,10 +1,10 @@
-# kids-group-chat のデプロイ
+# dialogue-and-ai のデプロイ
 #
 # 手順の中身は docs/deploy.md と docs/update.md。ここはその入口で、
 # 実際に動くのは deploy/remote.sh。
 #
 #   手元から SSH 越しに:  make update HOST=kids.example.com
-#   サーバーの上で直接  :  cd /opt/kids-group-chat && sudo make update
+#   サーバーの上で直接  :  cd /opt/dialogue-and-ai && sudo make update
 #
 # HOST を付ければ SSH 越し、付けなければその場で実行する。
 # sudo のパスワードは、その1回の実行につき最初に1度だけ聞かれる。
@@ -65,11 +65,11 @@ SSH_OPTS ?=
 
 # ---- 置き場所 (docs/deploy.md に合わせてある) -----------------------------
 
-APP_DIR    ?= /opt/kids-group-chat
-DATA_DIR   ?= /var/lib/kids-group-chat
-BACKUP_DIR ?= /var/backups/kids-group-chat
-SERVICE    ?= $(or $(call envval,SERVICE),kids-group-chat)
-REPO       ?= $(or $(call envval,REPO),https://github.com/kwaka1208/dojo-agent.git)
+APP_DIR    ?= /opt/dialogue-and-ai
+DATA_DIR   ?= /var/lib/dialogue-and-ai
+BACKUP_DIR ?= /var/backups/dialogue-and-ai
+SERVICE    ?= $(or $(call envval,SERVICE),dialogue-and-ai)
+REPO       ?= $(or $(call envval,REPO),https://github.com/kwaka1208/dialogue-and-ai.git)
 BRANCH     ?= $(or $(call envval,BRANCH),main)
 PORT       ?= 8787
 
@@ -91,7 +91,7 @@ LOG_LINES     ?= 50
 FOLLOW        ?=
 
 # サーバー側にスクリプトを置く場所 (SSH_USER のホームの下)
-STAGE ?= .kids-group-chat-deploy
+STAGE ?= .dialogue-and-ai-deploy
 
 # ---- SSH のつなぎ方 -------------------------------------------------------
 #
@@ -212,7 +212,7 @@ endef
 
 help:
 	@echo ''
-	@echo 'kids-group-chat のデプロイ'
+	@echo 'dialogue-and-ai のデプロイ'
 	@echo ''
 	@echo '  make install HOST=... SAKURA_AI_TOKEN=... GOOGLE_CLIENT_ID=... SUPER_ADMIN_EMAILS=...'
 	@echo '                        新規インストール。すでに入っていれば何もせず止まる'

@@ -35,11 +35,11 @@ fi
 
 # ---- 既定値 ---------------------------------------------------------------
 
-APP_DIR="${APP_DIR:-/opt/kids-group-chat}"
-DATA_DIR="${DATA_DIR:-/var/lib/kids-group-chat}"
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/kids-group-chat}"
-SERVICE="${SERVICE:-kids-group-chat}"
-REPO="${REPO:-https://github.com/kwaka1208/dojo-agent.git}"
+APP_DIR="${APP_DIR:-/opt/dialogue-and-ai}"
+DATA_DIR="${DATA_DIR:-/var/lib/dialogue-and-ai}"
+BACKUP_DIR="${BACKUP_DIR:-/var/backups/dialogue-and-ai}"
+SERVICE="${SERVICE:-dialogue-and-ai}"
+REPO="${REPO:-https://github.com/kwaka1208/dialogue-and-ai.git}"
 BRANCH="${BRANCH:-main}"
 PORT="${PORT:-8787}"
 NODE_MAJOR="${NODE_MAJOR:-22}"
@@ -304,7 +304,7 @@ install_env() {
 
 install_service() {
 	step "サービスを登録する ($SERVICE)"
-	cp "$APP_DIR/deploy/kids-group-chat.service" "$UNIT"
+	cp "$APP_DIR/deploy/dialogue-and-ai.service" "$UNIT"
 	systemctl daemon-reload
 	systemctl enable --now "$SERVICE"
 	systemctl --no-pager --full status "$SERVICE" || true
@@ -315,10 +315,10 @@ cmd_update() {
 	[ -d "$APP_DIR/.git" ] || die "$APP_DIR にリポジトリが無い。まだ入っていないなら install を使ってください"
 
 	step "控えを取る"
-	if [ -f "$DATA_DIR/kids-group-chat.sqlite" ]; then
+	if [ -f "$DATA_DIR/dialogue-and-ai.sqlite" ]; then
 		DATA_DIR="$DATA_DIR" "$APP_DIR/deploy/backup.sh" "$BACKUP_DIR"
 	else
-		skip "DBがまだ無い ($DATA_DIR/kids-group-chat.sqlite)"
+		skip "DBがまだ無い ($DATA_DIR/dialogue-and-ai.sqlite)"
 	fi
 
 	local before after current
@@ -446,7 +446,7 @@ cmd_backup() {
 cmd_backup_cron() {
 	need_root
 	step "控えを日に1回まわす"
-	local f=/etc/cron.d/kids-group-chat-backup
+	local f=/etc/cron.d/dialogue-and-ai-backup
 	printf '30 4 * * * root %s/deploy/backup.sh %s\n' "$APP_DIR" "$BACKUP_DIR" > "$f"
 	chmod 644 "$f"
 	info "$(cat "$f")"
@@ -487,10 +487,10 @@ cmd_https_nginx() {
 	step "nginx と certbot を入れる"
 	DEBIAN_FRONTEND=noninteractive apt-get install -y nginx certbot python3-certbot-nginx
 
-	local avail=/etc/nginx/sites-available/kids-group-chat
+	local avail=/etc/nginx/sites-available/dialogue-and-ai
 	local full="$avail.full"
 	sed "s/kids\.example\.com/$DOMAIN/g" "$APP_DIR/deploy/nginx.conf" > "$full"
-	ln -sf "$avail" /etc/nginx/sites-enabled/kids-group-chat
+	ln -sf "$avail" /etc/nginx/sites-enabled/dialogue-and-ai
 
 	if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
 		info "証明書がある。443 まで含めて入れる"

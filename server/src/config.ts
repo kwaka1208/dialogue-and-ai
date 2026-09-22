@@ -97,7 +97,7 @@ export const config = {
   },
 
   dataDir,
-  dbPath: path.join(dataDir, 'kids-group-chat.sqlite'),
+  dbPath: path.join(dataDir, 'dialogue-and-ai.sqlite'),
   uploadDir: env.UPLOAD_DIR
     ? path.resolve(packageRoot, env.UPLOAD_DIR)
     : path.join(dataDir, 'uploads'),

@@ -7,9 +7,9 @@
 
 | | 場所 | 誰が書くか |
 |---|---|---|
-| アプリ | `/opt/kids-group-chat` | デプロイのときだけ。サービスからは読むだけ |
-| データ | `/var/lib/kids-group-chat` | サービス（DBと添付ファイル） |
-| 控え | `/var/backups/kids-group-chat` | cron |
+| アプリ | `/opt/dialogue-and-ai` | デプロイのときだけ。サービスからは読むだけ |
+| データ | `/var/lib/dialogue-and-ai` | サービス（DBと添付ファイル） |
+| 控え | `/var/backups/dialogue-and-ai` | cron |
 
 アプリとデータを分けてあるので、デプロイでアプリを入れ替えてもDBには触らない。
 
@@ -46,7 +46,7 @@ free -h
 
 ```bash
 sudo groupadd --system kidschat
-sudo useradd --system --gid kidschat --home /var/lib/kids-group-chat \
+sudo useradd --system --gid kidschat --home /var/lib/dialogue-and-ai \
   --shell /usr/sbin/nologin kidschat
 ```
 
@@ -58,8 +58,8 @@ sudo useradd --system --gid kidschat --home /var/lib/kids-group-chat \
 ## 2. 初回デプロイ
 
 ```bash
-sudo git clone https://github.com/kwaka1208/dojo-agent.git /opt/kids-group-chat
-cd /opt/kids-group-chat
+sudo git clone https://github.com/kwaka1208/dialogue-and-ai.git /opt/dialogue-and-ai
+cd /opt/dialogue-and-ai
 sudo npm ci
 sudo npm run build
 ```
@@ -80,7 +80,7 @@ sudo npm rebuild better-sqlite3
 sudo cp .env.example .env
 sudo chown kidschat:kidschat .env
 sudo chmod 600 .env
-sudoedit /opt/kids-group-chat/.env   # または sudo nano /opt/kids-group-chat/.env
+sudoedit /opt/dialogue-and-ai/.env   # または sudo nano /opt/dialogue-and-ai/.env
 ```
 
 本番で埋めるのはこの5つ。
@@ -90,7 +90,7 @@ NODE_ENV=production
 SAKURA_AI_TOKEN=（AI Engine のトークン）
 GOOGLE_CLIENT_ID=（下の「Googleログインの用意」で作る）
 SUPER_ADMIN_EMAILS=（特権管理者のメールアドレス。カンマ区切り）
-DATA_DIR=/var/lib/kids-group-chat
+DATA_DIR=/var/lib/dialogue-and-ai
 ```
 
 `SUPER_ADMIN_EMAILS` に書いた人だけが、最初に管理画面へ入れる。ここから他の管理者を登録していく
@@ -99,12 +99,12 @@ DATA_DIR=/var/lib/kids-group-chat
 それと、`UPLOAD_DIR` の行を消す。
 
 ```bash
-sudo sed -i '/^UPLOAD_DIR=/d' /opt/kids-group-chat/.env
+sudo sed -i '/^UPLOAD_DIR=/d' /opt/dialogue-and-ai/.env
 ```
 
-消せば添付は `DATA_DIR` の下（`/var/lib/kids-group-chat/uploads`）に置かれる。`.env.example` のまま
+消せば添付は `DATA_DIR` の下（`/var/lib/dialogue-and-ai/uploads`）に置かれる。`.env.example` のまま
 `UPLOAD_DIR=./data/uploads` を残すと、相対パスはリポジトリの中を指すので
-`/opt/kids-group-chat/server/data/uploads` を作ろうとして起動に失敗する（ユニットの
+`/opt/dialogue-and-ai/server/data/uploads` を作ろうとして起動に失敗する（ユニットの
 `ProtectSystem=strict` で `/opt` には書けない）。`DATA_DIR` を直しても `UPLOAD_DIR` のほうが
 優先されるため、ここは見落としやすい。別の場所に置きたいときだけ、絶対パスで書く。
 
@@ -130,17 +130,17 @@ OAuth同意画面を「テスト中」のままにすると、テストユーザ
 ### サービスを登録する
 
 ```bash
-sudo cp /opt/kids-group-chat/deploy/kids-group-chat.service /etc/systemd/system/
+sudo cp /opt/dialogue-and-ai/deploy/dialogue-and-ai.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now kids-group-chat
-systemctl status kids-group-chat
+sudo systemctl enable --now dialogue-and-ai
+systemctl status dialogue-and-ai
 curl -s localhost:8787/api/health
 ```
 
 `{"ok":true,"aiConfigured":true,...}` が返れば起動している。`aiConfigured` が false なら
 `SAKURA_AI_TOKEN` か `SAKURA_AI_MODEL` が読めていない。
 
-`StateDirectory=kids-group-chat` が `/var/lib/kids-group-chat` を作って `kidschat` に渡すので、
+`StateDirectory=dialogue-and-ai` が `/var/lib/dialogue-and-ai` を作って `kidschat` に渡すので、
 ディレクトリを自分で掘る必要はない。
 
 ---
@@ -169,7 +169,7 @@ Cloudflare を使うなら、プロキシ（オレンジ雲）はグレー（DNS
 
 ```bash
 sudo apt install -y caddy   # Ubuntu 24.04 なら universe に入っている
-sudo cp /opt/kids-group-chat/deploy/Caddyfile /etc/caddy/Caddyfile
+sudo cp /opt/dialogue-and-ai/deploy/Caddyfile /etc/caddy/Caddyfile
 sudoedit /etc/caddy/Caddyfile   # kids.example.com を自分のドメインに置き換える
 sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl enable --now caddy
@@ -201,9 +201,9 @@ sudo journalctl -u caddy -n 40 --no-pager | grep -iE "certificate|error"
 
 ```bash
 sudo apt install -y nginx certbot python3-certbot-nginx
-sudo cp /opt/kids-group-chat/deploy/nginx.conf /etc/nginx/sites-available/kids-group-chat
-sudoedit /etc/nginx/sites-available/kids-group-chat   # ドメインを置き換える
-sudo ln -s /etc/nginx/sites-available/kids-group-chat /etc/nginx/sites-enabled/
+sudo cp /opt/dialogue-and-ai/deploy/nginx.conf /etc/nginx/sites-available/dialogue-and-ai
+sudoedit /etc/nginx/sites-available/dialogue-and-ai   # ドメインを置き換える
+sudo ln -s /etc/nginx/sites-available/dialogue-and-ai /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 sudo certbot --nginx -d kids.example.com
@@ -264,11 +264,11 @@ nginx なら `proxy_read_timeout` と `Connection ''` のあたり。
 [`update.md`](./update.md) にある。
 
 ```bash
-cd /opt/kids-group-chat
+cd /opt/dialogue-and-ai
 sudo git pull
 sudo npm ci
 sudo npm run build
-sudo systemctl restart kids-group-chat
+sudo systemctl restart dialogue-and-ai
 ```
 
 再起動すると、開いている画面のSSEは全部切れる。子どもの画面はつなぎ直すが、**部屋を使っている
@@ -290,10 +290,10 @@ sudo systemctl restart kids-group-chat
 
 ```bash
 sudo apt install -y sqlite3
-sudo /opt/kids-group-chat/deploy/backup.sh
+sudo /opt/dialogue-and-ai/deploy/backup.sh
 ```
 
-`/var/backups/kids-group-chat` に `db-*.sqlite.gz` と `uploads-*.tar.gz` を置く。14世代より
+`/var/backups/dialogue-and-ai` に `db-*.sqlite.gz` と `uploads-*.tar.gz` を置く。14世代より
 古いものは消える（`KEEP=30` のように変えられる）。
 
 初回は手で1度まわして、`db-*` と `uploads-*` の**両方**ができることを見ておく。`uploads-*` が
@@ -303,27 +303,27 @@ sudo /opt/kids-group-chat/deploy/backup.sh
 日に1回まわす。
 
 ```bash
-echo '30 4 * * * root /opt/kids-group-chat/deploy/backup.sh' | sudo tee /etc/cron.d/kids-group-chat-backup
-sudo chmod 644 /etc/cron.d/kids-group-chat-backup
+echo '30 4 * * * root /opt/dialogue-and-ai/deploy/backup.sh' | sudo tee /etc/cron.d/dialogue-and-ai-backup
+sudo chmod 644 /etc/cron.d/dialogue-and-ai-backup
 ```
 
 同じサーバーの中に置くだけでは、サーバーごと失うと戻せない。イベントのログを残すなら、
 控えを手元に落としておくこと。
 
 ```bash
-scp server:/var/backups/kids-group-chat/db-20260912-043000.sqlite.gz .
+scp server:/var/backups/dialogue-and-ai/db-20260912-043000.sqlite.gz .
 ```
 
 ### 戻すとき
 
 ```bash
-sudo systemctl stop kids-group-chat
-sudo gunzip -c /var/backups/kids-group-chat/db-20260912-043000.sqlite.gz \
-  | sudo tee /var/lib/kids-group-chat/kids-group-chat.sqlite > /dev/null
-sudo tar xzf /var/backups/kids-group-chat/uploads-20260912-043000.tar.gz \
-  -C /var/lib/kids-group-chat
-sudo chown -R kidschat:kidschat /var/lib/kids-group-chat
-sudo systemctl start kids-group-chat
+sudo systemctl stop dialogue-and-ai
+sudo gunzip -c /var/backups/dialogue-and-ai/db-20260912-043000.sqlite.gz \
+  | sudo tee /var/lib/dialogue-and-ai/dialogue-and-ai.sqlite > /dev/null
+sudo tar xzf /var/backups/dialogue-and-ai/uploads-20260912-043000.tar.gz \
+  -C /var/lib/dialogue-and-ai
+sudo chown -R kidschat:kidschat /var/lib/dialogue-and-ai
+sudo systemctl start dialogue-and-ai
 ```
 
 WAL のファイル（`-wal` / `-shm`）が残っていると、戻した本体と食い違う。止めてから入れ替えれば、
@@ -340,7 +340,7 @@ DBには管理者アカウントも入っている（`admin_accounts`）。戻�
 
 **前日まで**
 
-- サーバーが起きているか（`systemctl status kids-group-chat`）
+- サーバーが起きているか（`systemctl status dialogue-and-ai`）
 - AI Engine の当月の使用量に余裕があるか（コントロールパネルで見る）
 - NGワードのリストを、集まる子どもに合わせて見直す（`.env` の `NG_WORDS_FILE`）
 - 当日 `/admin` を触る人のアカウントが登録ずみで、本人が**当日までに一度ログインできている**か。
@@ -361,7 +361,7 @@ DBには管理者アカウントも入っている（`admin_accounts`）。戻�
 **やっている間**
 
 - 大人が同じ部屋にいる。これが一番効く
-- AIの返事が止まったら、`/admin` のログと `journalctl -u kids-group-chat -n 50` を見る
+- AIの返事が止まったら、`/admin` のログと `journalctl -u dialogue-and-ai -n 50` を見る
 - AIに聞ける回数が尽きたら、`/admin` の設定で上げる
 
 **終わったら**
@@ -376,16 +376,16 @@ DBには管理者アカウントも入っている（`admin_accounts`）。戻�
 
 ```bash
 # サーバーのログ。AIの失敗はここに詳しく出る
-sudo journalctl -u kids-group-chat -f
-sudo journalctl -u kids-group-chat --since '1 hour ago' | grep '\[ai\]'
+sudo journalctl -u dialogue-and-ai -f
+sudo journalctl -u dialogue-and-ai --since '1 hour ago' | grep '\[ai\]'
 
 # 起動しない
-systemctl status kids-group-chat
-sudo journalctl -u kids-group-chat -n 50 --no-pager
+systemctl status dialogue-and-ai
+sudo journalctl -u dialogue-and-ai -n 50 --no-pager
 
 # メモリとスワップ
 free -h
-systemctl show kids-group-chat -p MemoryCurrent
+systemctl show dialogue-and-ai -p MemoryCurrent
 
 # HTTPS側
 sudo journalctl -u caddy -n 50    # または sudo tail -f /var/log/nginx/error.log
@@ -405,7 +405,7 @@ sudo journalctl -u caddy -n 50    # または sudo tail -f /var/log/nginx/error.
 | AIの返事がまとめて出る | Webサーバーのバッファ設定（3章） |
 | 添付が413 | nginx の `client_max_body_size` |
 | 入り直せない | 強制退出した子は同じ名前で入れない（仕様）。別の名前で入る |
-| ディスクが埋まった | `du -sh /var/lib/kids-group-chat/uploads` と控えの世代数 |
+| ディスクが埋まった | `du -sh /var/lib/dialogue-and-ai/uploads` と控えの世代数 |
 
 `MemoryMax=600M` を超えると systemd がプロセスを殺して再起動する。何度も起きるなら、
 `journalctl` で `oom` を探して原因を見る。
