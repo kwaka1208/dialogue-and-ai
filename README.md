@@ -341,14 +341,20 @@ LINEやSlackにURLを貼ったときに出るカードの設定。タグは `web
 `web/public/assets/` の3枚（`ogp.png` 1200×630、`favicon.png`、`apple-touch-icon.png`）で、
 ビルドすると `dist/assets/` に入り、既存の `/assets/` の配信にそのまま乗る。
 
-`og:image` は絶対URLでないとどのサービスもプレビューを出さないが、ドメインは置き場所ごとに違う。
+`og:url` と `og:image` は絶対URLでないとどのサービスも受け取らないが、ドメインは置き場所ごとに違う。
 `.env` の `SITE_URL` をフロントのビルド時に読んで、`index.html` の `%SITE_URL%` を埋めている
-（`web/vite.config.ts`）。未設定なら相対パスのまま残るので、プレビューが出ないだけで画面は動く。
-`.env` はリポジトリ直下の1つだけなので、Vite には `loadEnv(mode, '..', ['SITE_URL'])` で親を読ませている。
-読むのは `SITE_URL` だけで、ほかの環境変数はフロントに混ざらない。
+（`web/vite.config.ts`）。`.env` はリポジトリ直下の1つだけなので、Vite には
+`loadEnv(mode, '..', ['SITE_URL'])` で親を読ませている。読むのは `SITE_URL` だけで、ほかの
+環境変数はフロントに混ざらない。
 
-`og:url` は書いていない。部屋のURLは渡した相手だけが知っているものなので、ページごとの絶対URLを
-HTMLに焼き付けない。タグは全ページ共通で、部屋の名前も番号も中身も出ない。
+`SITE_URL` が未設定のときは、絶対URLが要るタグ（`index.html` の `abs-url` ブロック）をまとめて
+出力から落とし、ビルドのときに警告を出す。空のまま埋めると `og:image` が相対パス、`og:url` が `/`
+になり、「設定されているのに無効」というOGPチェッカーでしか気づけない形になるため。落としても
+プレビューが出ないだけで画面は動く。
+
+`og:url` はトップのURLで固定してある。部屋ごとの絶対URLはHTMLに焼き付けない（渡した相手だけが
+知っているものなので）。どの部屋のURLを貼っても、カードに出る正規URLはトップを指す。タグは
+全ページ共通で、部屋の名前も番号も中身も出ない。
 
 `noindex, nofollow` とは矛盾しない。検索に載せないことと、URLを渡した相手のアプリでカードが出ることは
 別の話で、SNSのクローラーはこの指定を見ない。
@@ -364,7 +370,7 @@ npm start                 # node server/dist/index.js
 ```
 
 `SITE_URL` を `.env` に書いてからビルドすること。ビルドのときにHTMLへ埋めるので、あとから
-`.env` だけ直しても反映されない。
+`.env` だけ直しても反映されない（`make restart` では足りず、`make update` でビルドし直す）。
 
 `NODE_ENV=production` にすると、cookie に `Secure` が付き、`GOOGLE_CLIENT_ID` と
 `SAKURA_AI_TOKEN` の欠け、`SUPER_ADMIN_EMAILS` が空のままなのを起動時に弾く。フロントの静的ファイルは同じポートから BFF が配るので、

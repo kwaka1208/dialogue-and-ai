@@ -3,13 +3,29 @@ import react from '@vitejs/plugin-react';
 
 /**
  * index.html の %SITE_URL% を、ビルド時の SITE_URL に差し替える。
- * og:image は絶対URLでないとSNS側がプレビューを出さないが、ドメインは配置先ごとに違うので
- * ビルドのときに埋める。未設定なら相対パスとして残すだけで、画面自体は壊れない
+ * og:url と og:image は絶対URLでないとSNS側が受け取らないが、ドメインは配置先ごとに違うので
+ * ビルドのときに埋める。
+ *
+ * SITE_URL が無いときは、絶対URLが要るタグ (abs-url ブロック) をまとめて落とす。
+ * %SITE_URL% を空にして残すと og:image が相対パス、og:url が "/" になり、どちらも
+ * 「設定されているが無効」という、いちばん気づきにくい形になるため。
+ * 落としてもプレビューが出ないだけで、画面自体は壊れない
  */
+const ABS_URL_BLOCK = /[ \t]*<!-- abs-url:start -->[\s\S]*?<!-- abs-url:end -->\n?/;
+
 function siteUrl(baseUrl: string): Plugin {
   return {
     name: 'site-url',
-    transformIndexHtml: (html) => html.replaceAll('%SITE_URL%', baseUrl),
+    transformIndexHtml: (html) => {
+      if (!baseUrl) {
+        console.warn(
+          '[site-url] SITE_URL が未設定です。og:url と og:image を出力しません ' +
+            '(リンクを貼ってもプレビューは出ません)。.env に SITE_URL を書いてビルドし直してください',
+        );
+        return html.replace(ABS_URL_BLOCK, '');
+      }
+      return html.replaceAll('%SITE_URL%', baseUrl);
+    },
   };
 }
 
