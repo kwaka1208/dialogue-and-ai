@@ -8,7 +8,7 @@ export function HelpPage() {
   return (
     <main className="centered-page help-page">
       <h1 className="help-title">つかいかた</h1>
-      <p>おしゃべりルームは、みんなで はなす へやだよ。AIも いっしょに いるよ。</p>
+      <p>ここは、みんなで はなす へやだよ。AIも いっしょに いるよ。</p>
 
       <section className="help-section">
         <h2 className="help-heading">1. へやに はいる</h2>
