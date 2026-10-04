@@ -1,6 +1,7 @@
 import { MessageItem } from './MessageItem.tsx';
 import { useStickToBottom } from '../hooks/useStickToBottom.ts';
-import type { AiMode, Message } from '../types.ts';
+import { copyFor } from '../copy.ts';
+import type { AiMode, Audience, Message } from '../types.ts';
 
 interface TimelineProps {
   roomId: string;
@@ -8,6 +9,7 @@ interface TimelineProps {
   myParticipantId: string;
   streamingId: string | null;
   aiMode: AiMode;
+  audience: Audience;
 }
 
 export function Timeline({
@@ -16,6 +18,7 @@ export function Timeline({
   myParticipantId,
   streamingId,
   aiMode,
+  audience,
 }: TimelineProps) {
   const last = messages[messages.length - 1];
   // AIの本文は件数が増えないまま伸びるので、末尾の長さも見る
@@ -35,6 +38,7 @@ export function Timeline({
               isMine={message.participantId === myParticipantId}
               isStreaming={message.id === streamingId}
               aiMode={aiMode}
+              audience={audience}
             />
           ))}
         </ul>
@@ -43,7 +47,7 @@ export function Timeline({
 
       {!atBottom && (
         <button className="jump-button" type="button" onClick={jumpToBottom}>
-          ↓ あたらしい はなし
+          {copyFor(audience).jumpToLatest}
         </button>
       )}
     </div>

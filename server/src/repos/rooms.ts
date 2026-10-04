@@ -2,13 +2,14 @@ import { getDb } from '../db/index.js';
 import { randomId, randomDigits, sha256 } from '../lib/ids.js';
 import { isoAfterHours, nowIso } from '../lib/time.js';
 import { config } from '../config.js';
-import type { AiMode, ReplyMode, Room } from '../types.js';
+import type { AiMode, Audience, ReplyMode, Room } from '../types.js';
 
 interface RoomRow {
   id: string;
   code: string | null;
   name: string;
   passcode_hash: string | null;
+  audience: string;
   ai_mode: string;
   reply_mode: string;
   chat_system_prompt: string | null;
@@ -31,6 +32,7 @@ function toRoom(row: RoomRow): Room {
     code: row.code ?? '',
     name: row.name,
     passcodeHash: row.passcode_hash,
+    audience: row.audience === 'adult' ? 'adult' : 'kids',
     aiMode: row.ai_mode === 'opinion' ? 'opinion' : 'chat',
     replyMode: row.reply_mode === 'always' ? 'always' : 'mention',
     chatSystemPrompt: row.chat_system_prompt,
@@ -50,6 +52,8 @@ function toRoom(row: RoomRow): Room {
 export interface CreateRoomInput {
   name: string;
   passcode?: string | null;
+  /** 部屋の対象。作成後は変えられない */
+  audience?: Audience;
   aiMode?: AiMode;
   replyMode?: ReplyMode;
   /** モードごとの AI の中身。省略または null なら既定 (prompt.ts / .env) を使う */
@@ -71,6 +75,7 @@ export function createRoom(input: CreateRoomInput): Room {
     code: issueCode(),
     name: input.name,
     passcodeHash: input.passcode ? sha256(input.passcode) : null,
+    audience: input.audience ?? defaults.audience,
     aiMode: input.aiMode ?? defaults.aiMode,
     replyMode: input.replyMode ?? defaults.replyMode,
     chatSystemPrompt: input.chatSystemPrompt ?? null,
@@ -88,10 +93,10 @@ export function createRoom(input: CreateRoomInput): Room {
 
   getDb()
     .prepare(
-      `INSERT INTO rooms (id, code, name, passcode_hash, ai_mode, reply_mode,
+      `INSERT INTO rooms (id, code, name, passcode_hash, audience, ai_mode, reply_mode,
                            chat_system_prompt, opinion_system_prompt, chat_model, opinion_model,
                            capacity, turn_limit, turns_used, expires_at, created_by, created_at)
-       VALUES (@id, @code, @name, @passcodeHash, @aiMode, @replyMode,
+       VALUES (@id, @code, @name, @passcodeHash, @audience, @aiMode, @replyMode,
                @chatSystemPrompt, @opinionSystemPrompt, @chatModel, @opinionModel,
                @capacity, @turnLimit, 0, @expiresAt, @createdBy, @createdAt)`,
     )

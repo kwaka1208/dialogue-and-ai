@@ -4,7 +4,7 @@
  * 応答は「空のメッセージを1件つくる → 差分を流す → 本文を確定させる」の順で進む。
  * 途中で入室した子にも同じものが見えるよう、進行中の本文は ai-runs が持つ。
  *
- * 部屋のモード (会話 / 意見) で変わるのは、組み立てるリクエストと、
+ * 部屋のモード (会話 / 意見) と対象 (子ども / 大人) で変わるのは、組み立てるリクエストと、
  * 失敗したときに部屋へ出す文言だけ。流し方そのものは同じ。
  */
 import {
@@ -20,11 +20,12 @@ import { createPlainTextFilter } from '../lib/plain-text.js';
 import { startRun, endRun, type AiRun } from '../lib/ai-runs.js';
 import { publish } from '../lib/room-hub.js';
 import { resolveAiSettings } from '../lib/ai-settings.js';
+import { noticesFor } from '../lib/notices.js';
 import { buildAttachmentPayloads } from './attachment-context.js';
-import type { AiMode, Message, Room } from '../types.js';
+import type { AiMode, Audience, Message, Room } from '../types.js';
 
 /**
- * AIを動かせなかった理由。フロントで子ども向けの文言に直す。
+ * AIを動かせなかった理由。フロントで部屋の対象に合った文言に直す。
  * no_messages は意見モードだけで起きる (まだ誰も話しておらず、意見の材料が無い)。
  */
 export type AiSkipReason =
@@ -96,7 +97,7 @@ async function generate(room: Room, run: AiRun, history: Message[], mode: AiMode
     const attachments = await buildAttachmentPayloads(history);
     // system prompt もモデルも、部屋の設定があればそちらが勝つ。無ければ .env と既定
     const { systemPrompt, model } = resolveAiSettings(room, mode);
-    const request = buildChatMessages(history, attachments, mode, systemPrompt);
+    const request = buildChatMessages(history, attachments, mode, room.audience, systemPrompt);
 
     for await (const delta of streamChatCompletion(request, run.controller.signal, model)) {
       if (!leadFlushed) {
@@ -117,7 +118,7 @@ async function generate(room: Room, run: AiRun, history: Message[], mode: AiMode
       finish(roomId, run);
       return;
     }
-    fail(roomId, run, error, mode);
+    fail(roomId, run, error, mode, room.audience);
   } finally {
     endRun(roomId, run);
   }
@@ -141,7 +142,13 @@ function finish(roomId: string, run: AiRun): void {
 }
 
 /** 詳細はサーバーログへ。子どもの画面には「いま話せないみたい」だけ出す */
-function fail(roomId: string, run: AiRun, error: unknown, mode: AiMode): void {
+function fail(
+  roomId: string,
+  run: AiRun,
+  error: unknown,
+  mode: AiMode,
+  audience: Audience,
+): void {
   const detail = error instanceof Error ? error.message : String(error);
   const timedOut = error instanceof Error && error.name === 'TimeoutError';
   console.error(
@@ -159,19 +166,13 @@ function fail(roomId: string, run: AiRun, error: unknown, mode: AiMode): void {
   const notice = insertMessage({
     roomId,
     kind: 'system',
-    body: failureNotice(mode, timedOut),
+    body: failureNotice(audience, mode, timedOut),
   });
   publish(roomId, { type: 'message', message: forRoom(notice) });
 }
 
-/** 部屋の全員に出すお知らせ。モードによって「おへんじ」と「いけん」を言い分ける */
-function failureNotice(mode: AiMode, timedOut: boolean): string {
-  if (mode === 'opinion') {
-    return timedOut
-      ? 'AIの いけんが おそいので やめました。もういちど きいてみてね'
-      : 'いま AIに いけんを きけないみたい。すこし してから もういちど きいてね';
-  }
-  return timedOut
-    ? 'AIの おへんじが おそいので やめました。もういちど きいてみてね'
-    : 'いま AIと おはなし できないみたい。すこし してから もういちど きいてね';
+/** 部屋の全員に出すお知らせ。モードによって「返事」と「意見」を、対象によって言葉づかいを分ける */
+function failureNotice(audience: Audience, mode: AiMode, timedOut: boolean): string {
+  const words = noticesFor(audience).failed[mode];
+  return timedOut ? words.timeout : words.error;
 }

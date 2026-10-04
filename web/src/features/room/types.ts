@@ -2,6 +2,8 @@
 
 /** 部屋でのAIの立ち位置。chat = 会話の相手、opinion = やり取りを見て意見を言う */
 export type AiMode = 'chat' | 'opinion';
+/** 部屋の対象。kids = 子ども向け (ひらがな中心)、adult = 大人向け (漢字まじり)。作成後は変わらない */
+export type Audience = 'kids' | 'adult';
 /** 会話モードでAIが口を開くきっかけ。意見モードでは使わない */
 export type ReplyMode = 'mention' | 'always';
 export type MessageKind = 'user' | 'ai' | 'system';
@@ -46,6 +48,7 @@ export interface RoomInfo {
   id: string;
   name: string;
   requiresPasscode: boolean;
+  audience: Audience;
   aiMode: AiMode;
   replyMode: ReplyMode;
   /** サーバーに AI Engine の設定があるか。無ければ子ども同士のチャットだけ動く */

@@ -77,6 +77,8 @@ function addMissingColumns(db: Database.Database): void {
     { table: 'rooms', column: 'opinion_system_prompt', definition: 'TEXT' },
     { table: 'rooms', column: 'chat_model', definition: 'TEXT' },
     { table: 'rooms', column: 'opinion_model', definition: 'TEXT' },
+    // フェーズ13: 部屋の対象。既存の部屋は子ども向けになる
+    { table: 'rooms', column: 'audience', definition: "TEXT NOT NULL DEFAULT 'kids'" },
   ];
 
   for (const { table, column, definition } of additions) {

@@ -1,5 +1,5 @@
 /** server/src/routes/admin.ts が返す形に対応する */
-import type { AiMode, Message, Participant, ReplyMode } from '../room/types.ts';
+import type { AiMode, Audience, Message, Participant, ReplyMode } from '../room/types.ts';
 
 /** モードごとの、部屋で上書きしなかったときの中身。/session が返す */
 export interface AiModeDefaults {
@@ -8,16 +8,21 @@ export interface AiModeDefaults {
   model: string | null;
 }
 
-export interface AiDefaults {
+export interface AiModeDefaultsSet {
   chat: AiModeDefaults;
   opinion: AiModeDefaults;
 }
+
+/** 既定の system prompt は部屋の対象ごとに別 */
+export type AiDefaults = Record<Audience, AiModeDefaultsSet>;
 
 export interface AdminRoom {
   id: string;
   /** 子どもがトップページで入れる6桁の数字 */
   code: string;
   name: string;
+  /** 部屋の対象。作成後は変えられない */
+  audience: Audience;
   aiMode: AiMode;
   replyMode: ReplyMode;
   /** モードごとの system prompt とモデル。null なら既定を使う */
@@ -96,6 +101,7 @@ export interface AdminSession {
     capacity: number;
     expiresInHours: number;
     turnLimit: number;
+    audience: Audience;
     aiMode: AiMode;
     replyMode: ReplyMode;
   };
@@ -108,6 +114,7 @@ export interface AdminSession {
 export interface CreateRoomInput {
   name: string;
   passcode?: string;
+  audience?: Audience;
   aiMode?: AiMode;
   replyMode?: ReplyMode;
   /** 空文字または null を送ると既定のまま */

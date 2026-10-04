@@ -1,7 +1,7 @@
 /**
  * 「この部屋のこのモードで、どの system prompt とどのモデルを使うか」の解決。
  *
- * 決め方は3段。部屋ごとの設定 → .env → prompt.ts の既定。
+ * 決め方は3段。部屋ごとの設定 → .env → prompt.ts の既定 (部屋の対象ごとに別)。
  * 部屋の列 (chat_system_prompt など) はどれも NULL 可で、NULL は「既定のまま」を意味する。
  * 解決をここ1か所に閉じておかないと、生成のときと画面に出すときで食い違う。
  */
@@ -28,7 +28,7 @@ export function resolveAiSettings(room: Room, mode: AiMode): AiSettings {
   const model = mode === 'opinion' ? room.opinionModel : room.chatModel;
 
   return {
-    systemPrompt: prompt ?? systemPromptFor(mode),
+    systemPrompt: prompt ?? systemPromptFor(mode, room.audience),
     model: model ?? defaultModelFor(mode),
     systemPromptOverridden: prompt !== null,
     modelOverridden: model !== null,

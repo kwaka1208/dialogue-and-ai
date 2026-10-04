@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
+import { copyFor } from '../copy.ts';
+import type { Audience } from '../types.ts';
 
 interface LeaveButtonProps {
   onLeave: () => void;
+  audience: Audience;
 }
 
 /** 聞き返しが消えるまでの時間。押しっぱなしの状態を残さない */
@@ -11,7 +14,7 @@ const RESET_MS = 5000;
  * 部屋から出るボタン。押し間違いで会話が切れないように2回押させる。
  * 管理画面の強制退出と同じやり方で、確認ダイアログは出さない。
  */
-export function LeaveButton({ onLeave }: LeaveButtonProps) {
+export function LeaveButton({ onLeave, audience }: LeaveButtonProps) {
   const [asking, setAsking] = useState(false);
 
   useEffect(() => {
@@ -35,7 +38,7 @@ export function LeaveButton({ onLeave }: LeaveButtonProps) {
       type="button"
       onClick={handleClick}
     >
-      {asking ? 'ほんとうに でる？' : 'でる'}
+      {asking ? copyFor(audience).leaveConfirm : copyFor(audience).leave}
     </button>
   );
 }

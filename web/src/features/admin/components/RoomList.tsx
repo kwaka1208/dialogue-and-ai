@@ -33,6 +33,7 @@ export function RoomList({ rooms, selectedId, onSelect, showOwner }: RoomListPro
               <span className="room-row-name">
                 <span className="room-code">{room.code}</span>
                 {room.name}
+                {room.audience === 'adult' && <span className="room-tag">大人向け</span>}
                 {room.hasPasscode && <span className="room-tag">合言葉</span>}
                 {room.closed && <span className="room-tag is-closed">終了</span>}
               </span>

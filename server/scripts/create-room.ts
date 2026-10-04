@@ -4,10 +4,12 @@
  *   npm run room:new -w server
  *   npm run room:new -w server -- --name "ロボットのへや" --passcode 1234 --always
  *   npm run room:new -w server -- --name "そうだんのへや" --opinion
+ *   npm run room:new -w server -- --name "企画相談" --adult
  *   npm run room:new -w server -- --owner admin@example.com
  *   npm run room:new -w server -- --model preview/gemma-4-31B-it --prompt-file ./prompt.txt
  *
  * --opinion を付けると意見モードの部屋になる。付けなければ会話モード。
+ * --adult を付けると大人向けの部屋になる。付けなければ子ども向け。
  * --always は会話モードでだけ効く (AIが毎回返事をする)。
  * --model と --prompt-file は、いま選んでいるモードのぶんに入る。
  * 省略すれば既定 (.env と prompt.ts) のままになる。
@@ -44,6 +46,7 @@ const model = flag('model');
 const room = createRoom({
   name: flag('name') ?? 'テストのへや',
   passcode: flag('passcode') ?? null,
+  audience: process.argv.includes('--adult') ? 'adult' : 'kids',
   aiMode,
   replyMode: process.argv.includes('--always') ? 'always' : 'mention',
   // 選んだモードのぶんにだけ入れる。もう一方は既定のまま
@@ -60,6 +63,7 @@ console.log(`部屋を作りました: ${room.name}`);
 console.log(`  部屋コード: ${room.code}`);
 console.log(`  URL       : http://localhost:5173/r/${room.id}`);
 console.log(`  合言葉    : ${room.passcodeHash ? (flag('passcode') ?? '(設定あり)') : 'なし'}`);
+console.log(`  対象      : ${room.audience === 'adult' ? '大人向け' : '子ども向け'}`);
 console.log(`  AIのモード: ${room.aiMode === 'opinion' ? '意見' : '会話'}`);
 // 意見モードでは、AIが口を開くのは「いけんを きく」を押されたときだけ
 if (room.aiMode === 'chat') console.log(`  返答モード: ${room.replyMode}`);

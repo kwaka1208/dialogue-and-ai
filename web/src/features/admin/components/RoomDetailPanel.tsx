@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import * as api from '../api.ts';
 import { useRoomDetail } from '../hooks/useRoomDetail.ts';
-import { aiModeText, dateTimeText, remainingText, replyModeText } from '../format.ts';
+import {
+  aiModeText,
+  audienceText,
+  dateTimeText,
+  remainingText,
+  replyModeText,
+} from '../format.ts';
 import { RoomSettings } from './RoomSettings.tsx';
 import { ParticipantTable } from './ParticipantTable.tsx';
 import { MessageLog } from './MessageLog.tsx';
@@ -101,6 +107,10 @@ export function RoomDetailPanel({
         <div>
           <dt>発言</dt>
           <dd>{detail.messageCount} 件</dd>
+        </div>
+        <div>
+          <dt>対象</dt>
+          <dd>{audienceText(room.audience)}</dd>
         </div>
         <div>
           <dt>AIのモード</dt>

@@ -108,6 +108,7 @@ export const config = {
     capacity: 20,
     expiresInHours: 4,
     turnLimit: 100,
+    audience: 'kids' as const,
     aiMode: 'chat' as const,
     replyMode: 'mention' as const,
   },

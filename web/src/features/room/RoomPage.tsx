@@ -3,6 +3,7 @@ import { JoinForm } from './components/JoinForm.tsx';
 import { ChatRoom } from './components/ChatRoom.tsx';
 import { useRoomInfo } from './hooks/useRoomInfo.ts';
 import { useRoomSession } from './hooks/useRoomSession.ts';
+import { copyFor } from './copy.ts';
 
 export function RoomPage() {
   const { roomId = '' } = useParams<{ roomId: string }>();
@@ -35,7 +36,7 @@ export function RoomPage() {
     return (
       <main className="centered-page">
         <h1>{info.room.name}</h1>
-        <p>この へやは おわりました。</p>
+        <p>{copyFor(info.room.audience).roomClosed}。</p>
       </main>
     );
   }
@@ -44,7 +45,7 @@ export function RoomPage() {
     return (
       <main className="centered-page">
         <h1>{info.room.name}</h1>
-        <p>この へやから でました。おとなの人に きいてね。</p>
+        <p>{copyFor(info.room.audience).kicked}</p>
       </main>
     );
   }

@@ -1,5 +1,6 @@
 import { AttachmentList } from './AttachmentList.tsx';
-import type { AiMode, Message } from '../types.ts';
+import { copyFor } from '../copy.ts';
+import type { AiMode, Audience, Message } from '../types.ts';
 
 interface MessageItemProps {
   message: Message;
@@ -9,6 +10,8 @@ interface MessageItemProps {
   isStreaming: boolean;
   /** 部屋のモード。AIの見出しがこれで変わる */
   aiMode: AiMode;
+  /** 部屋の対象。見出しや「じぶん」の言葉づかいが変わる */
+  audience: Audience;
 }
 
 function formatTime(iso: string): string {
@@ -21,13 +24,21 @@ function speakerMark(kind: Message['kind'], isMine: boolean): string {
   return isMine ? '🙂' : '🧒';
 }
 
-export function MessageItem({ message, roomId, isMine, isStreaming, aiMode }: MessageItemProps) {
+export function MessageItem({
+  message,
+  roomId,
+  isMine,
+  isStreaming,
+  aiMode,
+  audience,
+}: MessageItemProps) {
   if (message.kind === 'system') {
     return <li className="message message-system">{message.body}</li>;
   }
 
-  const aiSpeaker = aiMode === 'opinion' ? 'AIの いけん' : 'AI';
-  const speaker = message.kind === 'ai' ? aiSpeaker : (message.displayName ?? 'だれか');
+  const copy = copyFor(audience);
+  const aiSpeaker = aiMode === 'opinion' ? copy.aiSpeakerOpinion : copy.aiSpeakerChat;
+  const speaker = message.kind === 'ai' ? aiSpeaker : (message.displayName ?? copy.unknownSpeaker);
 
   // 最初のひとことが届くまでのあいだ、待たされている感じを減らす
   if (isStreaming && message.body === '') {
@@ -40,7 +51,7 @@ export function MessageItem({ message, roomId, isMine, isStreaming, aiMode }: Me
           <span className="message-speaker">{speaker}</span>
         </div>
         <p className="message-body message-thinking" role="status">
-          かんがえちゅう
+          {copy.thinking}
           <span className="thinking-dots" aria-hidden="true">
             <i />
             <i />
@@ -60,7 +71,7 @@ export function MessageItem({ message, roomId, isMine, isStreaming, aiMode }: Me
           {speakerMark(message.kind, isMine)}
         </span>
         <span className="message-speaker">{speaker}</span>
-        {isMine && <span className="message-self">じぶん</span>}
+        {isMine && <span className="message-self">{copy.self}</span>}
         <time className="message-time" dateTime={message.createdAt}>
           {formatTime(message.createdAt)}
         </time>

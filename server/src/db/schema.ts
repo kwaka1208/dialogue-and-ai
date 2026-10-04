@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS rooms (
   code          TEXT,                      -- トップページで入れる6桁の数字。期限内の部屋の中で重複しない
   name          TEXT NOT NULL,
   passcode_hash TEXT,                      -- NULL可。設定時は4桁の合言葉のハッシュ
+  audience      TEXT NOT NULL DEFAULT 'kids',     -- 'kids' | 'adult'。作成後は変えない
   ai_mode       TEXT NOT NULL DEFAULT 'chat',     -- 'chat' | 'opinion'
   reply_mode    TEXT NOT NULL,             -- 'mention' | 'always' (ai_mode='chat' のときだけ効く)
   -- AIの中身の差し替え。いずれも NULL 可で、NULL なら既定 (prompt.ts / .env) を使う

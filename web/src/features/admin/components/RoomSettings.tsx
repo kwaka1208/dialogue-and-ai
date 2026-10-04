@@ -142,7 +142,7 @@ export function RoomSettings({ room, aiDefaults, onSaved }: RoomSettingsProps) {
           <option value="opinion">意見モード</option>
         </select>
         <span className="field-hint">
-          変えると、いま部屋にいる子の画面もボタンごと入れかわります。
+          変えると、いま部屋にいる参加者の画面もボタンごと入れかわります。
         </span>
       </label>
 
@@ -164,7 +164,7 @@ export function RoomSettings({ room, aiDefaults, onSaved }: RoomSettingsProps) {
       {aiMode === 'chat' ? (
         <AiBrainFields
           mode="chat"
-          defaults={aiDefaults.chat}
+          defaults={aiDefaults[room.audience].chat}
           options={models}
           model={chatModel}
           onModelChange={setChatModel}
@@ -174,7 +174,7 @@ export function RoomSettings({ room, aiDefaults, onSaved }: RoomSettingsProps) {
       ) : (
         <AiBrainFields
           mode="opinion"
-          defaults={aiDefaults.opinion}
+          defaults={aiDefaults[room.audience].opinion}
           options={models}
           model={opinionModel}
           onModelChange={setOpinionModel}

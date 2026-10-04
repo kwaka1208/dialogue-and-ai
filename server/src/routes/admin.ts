@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { config, isAiConfigured } from '../config.js';
 import { AiEngineError, listModels } from '../lib/ai-client.js';
 import { defaultModelFor } from '../lib/ai-settings.js';
+import { noticesFor } from '../lib/notices.js';
 import { systemPromptFor } from '../lib/prompt.js';
 import { adminAuth, type AdminEnv } from '../middleware/admin.js';
 import { adminAccountsRoute } from './admin-accounts.js';
@@ -22,7 +23,7 @@ import { deleteForRoom, listForRoom } from '../repos/attachments.js';
 import { removeRoomDir } from '../lib/uploads.js';
 import { disconnect, presenceOf, publish } from '../lib/room-hub.js';
 import { isPast } from '../lib/time.js';
-import type { Participant, Room } from '../types.js';
+import type { Audience, Participant, Room } from '../types.js';
 
 /** 管理画面でログを読むときの上限。エクスポートはこれとは別に全件返す */
 const LOG_LIMIT = 500;
@@ -49,6 +50,17 @@ const modelField = z
   .transform((value) => (value === '' ? null : value))
   .nullable()
   .optional();
+
+/** 対象ひとつぶんの、部屋で上書きしなかったときの中身 */
+function aiDefaultsFor(audience: Audience) {
+  return {
+    chat: { systemPrompt: systemPromptFor('chat', audience), model: defaultModelFor('chat') ?? null },
+    opinion: {
+      systemPrompt: systemPromptFor('opinion', audience),
+      model: defaultModelFor('opinion') ?? null,
+    },
+  };
+}
 
 /** 合言葉のハッシュは管理画面にも返さない */
 function publicRoom(room: Room): Omit<Room, 'passcodeHash'> & {
@@ -92,6 +104,8 @@ const createRoomSchema = z.object({
     .string()
     .regex(/^\d{4}$/, '合言葉は4桁の数字')
     .optional(),
+  // 対象は作成時にだけ決める。updateRoomSchema には入れない
+  audience: z.enum(['kids', 'adult']).optional(),
   aiMode: z.enum(['chat', 'opinion']).optional(),
   replyMode: z.enum(['mention', 'always']).optional(),
   chatSystemPrompt: systemPromptField,
@@ -131,13 +145,11 @@ adminRoute.get('/session', (c) => {
     isSuper: admin.isSuper,
     aiConfigured: isAiConfigured(),
     roomDefaults: config.roomDefaults,
-    // 部屋で上書きしなかったときに使われる中身。管理画面が textarea の下敷きに使う
+    // 部屋で上書きしなかったときに使われる中身。管理画面が textarea の下敷きに使う。
+    // system prompt は部屋の対象 (子ども / 大人) ごとに別
     aiDefaults: {
-      chat: { systemPrompt: systemPromptFor('chat'), model: defaultModelFor('chat') ?? null },
-      opinion: {
-        systemPrompt: systemPromptFor('opinion'),
-        model: defaultModelFor('opinion') ?? null,
-      },
+      kids: aiDefaultsFor('kids'),
+      adult: aiDefaultsFor('adult'),
     },
     rateLimits: config.rateLimits,
   });
@@ -270,7 +282,7 @@ adminRoute.post('/rooms/:id/participants/:participantId/kick', (c) => {
   const systemMessage = insertMessage({
     roomId,
     kind: 'system',
-    body: `${participant.displayName} さんが でていきました`,
+    body: noticesFor(room.audience).left(participant.displayName),
   });
   publish(roomId, { type: 'message', message: systemMessage });
 

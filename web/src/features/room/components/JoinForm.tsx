@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import * as api from '../api.ts';
 import { ApiError } from '../../../lib/api.ts';
 import { errorText } from '../messages.ts';
+import { copyFor } from '../copy.ts';
 import type { Participant, RoomInfo } from '../types.ts';
 
 interface JoinFormProps {
@@ -14,6 +15,7 @@ export function JoinForm({ room, onJoined }: JoinFormProps) {
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const copy = copyFor(room.audience);
 
   const handleSubmit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -27,7 +29,7 @@ export function JoinForm({ room, onJoined }: JoinFormProps) {
       });
       onJoined(participant);
     } catch (err) {
-      setError(errorText(err instanceof ApiError ? err.code : 'unknown'));
+      setError(errorText(err instanceof ApiError ? err.code : 'unknown', room.audience));
     } finally {
       setSubmitting(false);
     }
@@ -39,7 +41,7 @@ export function JoinForm({ room, onJoined }: JoinFormProps) {
 
       <form className="join-form" onSubmit={handleSubmit}>
         <label className="field">
-          <span className="field-label">なまえ</span>
+          <span className="field-label">{copy.nameLabel}</span>
           <input
             className="field-input"
             value={displayName}
@@ -47,14 +49,14 @@ export function JoinForm({ room, onJoined }: JoinFormProps) {
             maxLength={12}
             required
             autoFocus
-            placeholder="たろう"
+            placeholder={copy.namePlaceholder}
           />
-          <span className="field-hint">1〜12もじ。ほんとうの なまえで なくても いいよ</span>
+          <span className="field-hint">{copy.nameHint}</span>
         </label>
 
         {room.requiresPasscode && (
           <label className="field">
-            <span className="field-label">あいことば</span>
+            <span className="field-label">{copy.passcodeLabel}</span>
             <input
               className="field-input"
               value={passcode}
@@ -63,7 +65,7 @@ export function JoinForm({ room, onJoined }: JoinFormProps) {
               pattern="\d{4}"
               maxLength={4}
               required
-              placeholder="4けたの すうじ"
+              placeholder={copy.passcodePlaceholder}
             />
           </label>
         )}
@@ -75,16 +77,18 @@ export function JoinForm({ room, onJoined }: JoinFormProps) {
         )}
 
         <button className="primary-button" type="submit" disabled={submitting || !displayName}>
-          {submitting ? 'はいっています…' : 'はいる'}
+          {submitting ? copy.joining : copy.join}
         </button>
       </form>
 
       <p className="notice">
-        <strong>やくそく</strong>
-        <br />
-        ここで はなしたことは、おとなが あとから ぜんぶ よめます。
-        <br />
-        じゅうしょ・がっこうの なまえ・でんわばんごうは かかないでね。
+        <strong>{copy.promiseTitle}</strong>
+        {copy.promiseLines.map((line) => (
+          <span key={line}>
+            <br />
+            {line}
+          </span>
+        ))}
       </p>
     </main>
   );

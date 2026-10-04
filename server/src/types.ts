@@ -4,6 +4,12 @@
  * - opinion : 会話には入らず、頼まれたときだけ、そこまでのやり取りに意見を言う
  */
 export type AiMode = 'chat' | 'opinion';
+/**
+ * 部屋の対象。部屋を作るときに選び、あとからは変えない。
+ * - kids  : 子ども向け。画面はひらがな中心、AIは小学生向けに話す
+ * - adult : 大人向け。画面は漢字まじり、AIはプロジェクトの相談相手として積極的に関わる
+ */
+export type Audience = 'kids' | 'adult';
 /** 会話モードでAIが口を開くきっかけ。意見モードでは使わない */
 export type ReplyMode = 'mention' | 'always';
 export type MessageKind = 'user' | 'ai' | 'system';
@@ -37,6 +43,8 @@ export interface Room {
   code: string;
   name: string;
   passcodeHash: string | null;
+  /** 部屋の対象。作成後は変えない */
+  audience: Audience;
   aiMode: AiMode;
   replyMode: ReplyMode;
   /** 会話モードの system prompt。null なら既定 (KIDS_SYSTEM_PROMPT) を使う */

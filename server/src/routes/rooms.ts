@@ -26,6 +26,7 @@ import { startAiResponse, type AiSkipReason } from '../services/ai-responder.js'
 import { isAiAvailableFor } from '../lib/ai-settings.js';
 import { abortRun, activeRun } from '../lib/ai-runs.js';
 import { consume, retryAfterSeconds } from '../lib/rate-limit.js';
+import { noticesFor } from '../lib/notices.js';
 import { AI_HISTORY_LIMIT, mentionsAi } from '../lib/prompt.js';
 import { containsNgWord } from '../lib/word-filter.js';
 import { addConnection, isConnected, presenceOf, publish } from '../lib/room-hub.js';
@@ -123,6 +124,7 @@ roomsRoute.get('/:id', (c) => {
     id: room.id,
     name: room.name,
     requiresPasscode: room.passcodeHash !== null,
+    audience: room.audience,
     aiMode: room.aiMode,
     replyMode: room.replyMode,
     aiAvailable: isAiAvailableFor(room),
@@ -170,7 +172,7 @@ roomsRoute.post('/:id/join', async (c) => {
   const systemMessage = insertMessage({
     roomId,
     kind: 'system',
-    body: `${result.participant.displayName} さんが はいりました`,
+    body: noticesFor(room.audience).joined(result.participant.displayName),
   });
   publish(roomId, { type: 'message', message: forRoom(systemMessage) });
 
@@ -385,7 +387,7 @@ function requestOpinion(room: Room, participant: Participant): 'started' | AiSki
     const notice = insertMessage({
       roomId: room.id,
       kind: 'system',
-      body: `${participant.displayName} さんが AIに いけんを ききました`,
+      body: noticesFor(room.audience).askedOpinion(participant.displayName),
     });
     publish(room.id, { type: 'message', message: forRoom(notice) });
   });
@@ -440,7 +442,7 @@ roomsRoute.post('/:id/leave', participantAuth, (c) => {
   const systemMessage = insertMessage({
     roomId: room.id,
     kind: 'system',
-    body: `${participant.displayName} さんが でていきました`,
+    body: noticesFor(room.audience).left(participant.displayName),
   });
   publish(room.id, { type: 'message', message: forRoom(systemMessage) });
   deleteCookie(c, participantCookieName(room.id), { path: `/api/rooms/${room.id}` });

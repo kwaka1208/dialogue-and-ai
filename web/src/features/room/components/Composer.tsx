@@ -4,10 +4,13 @@ import { ApiError } from '../../../lib/api.ts';
 import { errorText } from '../messages.ts';
 import { ACCEPT_ATTRIBUTE, MAX_FILES_PER_MESSAGE } from '../attachments.ts';
 import { fileSizeText } from './AttachmentList.tsx';
-import type { Attachment } from '../types.ts';
+import { copyFor, type RoomCopy } from '../copy.ts';
+import type { Attachment, Audience } from '../types.ts';
 
 interface ComposerProps {
   roomId: string;
+  /** 部屋の対象。ボタンや案内の言葉づかいが変わる */
+  audience: Audience;
   /** 送れたら true。false のときは書いたものを消さずに残す */
   onSend: (body: string, askAi: boolean, attachmentIds: string[]) => Promise<boolean>;
   /**
@@ -22,14 +25,15 @@ interface ComposerProps {
   disabled: boolean;
 }
 
-function aiButtonTitle(aiEnabled: boolean, aiBusy: boolean): string {
-  if (!aiEnabled) return 'いまは AIが おやすみちゅう';
-  if (aiBusy) return 'AIが おへんじを かいているよ';
-  return 'AIに こたえてもらう';
+function aiButtonTitle(copy: RoomCopy, aiEnabled: boolean, aiBusy: boolean): string {
+  if (!aiEnabled) return copy.aiResting;
+  if (aiBusy) return copy.askAiBusy;
+  return copy.askAiTitle;
 }
 
 export function Composer({
   roomId,
+  audience,
   onSend,
   showAiButton,
   aiEnabled,
@@ -43,6 +47,7 @@ export function Composer({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const copy = copyFor(audience);
 
   const hasContent = body.trim().length > 0 || pending.length > 0;
   const canSend = hasContent && !sending && !uploading && !disabled;
@@ -92,7 +97,7 @@ export function Composer({
       let added = 0;
       for (const file of chosen) {
         if (pending.length + added >= MAX_FILES_PER_MESSAGE) {
-          setUploadError(errorText('too_many_files'));
+          setUploadError(errorText('too_many_files', audience));
           break;
         }
         try {
@@ -100,7 +105,7 @@ export function Composer({
           setPending((current) => [...current, attachment]);
           added += 1;
         } catch (error) {
-          setUploadError(errorText(error instanceof ApiError ? error.code : 'unknown'));
+          setUploadError(errorText(error instanceof ApiError ? error.code : 'unknown', audience));
           break;
         }
       }
@@ -136,8 +141,8 @@ export function Composer({
                 className="pending-remove"
                 type="button"
                 onClick={() => void handleRemove(attachment.id)}
-                title="この ファイルを やめる"
-                aria-label={`${attachment.originalName} を やめる`}
+                title={copy.removeFileTitle}
+                aria-label={copy.removeFileLabel(attachment.originalName)}
               >
                 ×
               </button>
@@ -159,8 +164,8 @@ export function Composer({
         onKeyDown={handleKeyDown}
         maxLength={2000}
         rows={2}
-        placeholder={disabled ? 'この へやは おわりました' : 'メッセージを かこう'}
-        aria-label="メッセージ"
+        placeholder={disabled ? copy.placeholderClosed : copy.placeholder}
+        aria-label={copy.inputLabel}
         disabled={disabled}
       />
 
@@ -180,14 +185,14 @@ export function Composer({
           disabled={disabled || uploading || pending.length >= MAX_FILES_PER_MESSAGE}
           title={
             pending.length >= MAX_FILES_PER_MESSAGE
-              ? `ファイルは ${MAX_FILES_PER_MESSAGE}こまで`
-              : 'ファイルを つける'
+              ? copy.attachLimit(MAX_FILES_PER_MESSAGE)
+              : copy.attachTitle
           }
         >
-          {uploading ? 'おくってます…' : '📎 ファイル'}
+          {uploading ? copy.uploading : copy.attach}
         </button>
         <button className="primary-button" type="submit" disabled={!canSend}>
-          {showAiButton ? 'いう' : 'おくる'}
+          {showAiButton ? copy.send : copy.sendNoAi}
         </button>
         {showAiButton && (
           <button
@@ -195,9 +200,9 @@ export function Composer({
             type="button"
             onClick={() => void send(true)}
             disabled={!canSend || !aiEnabled || aiBusy}
-            title={aiButtonTitle(aiEnabled, aiBusy)}
+            title={aiButtonTitle(copy, aiEnabled, aiBusy)}
           >
-            🤖 AIに きく
+            {copy.askAi}
           </button>
         )}
       </div>

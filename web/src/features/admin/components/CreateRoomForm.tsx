@@ -19,6 +19,7 @@ export function CreateRoomForm({ defaults, aiDefaults, onCreated }: CreateRoomFo
   const [capacity, setCapacity] = useState(String(defaults.capacity));
   const [turnLimit, setTurnLimit] = useState(String(defaults.turnLimit));
   const [expiresInHours, setExpiresInHours] = useState(String(defaults.expiresInHours));
+  const [audience, setAudience] = useState(defaults.audience);
   const [aiMode, setAiMode] = useState(defaults.aiMode);
   const [replyMode, setReplyMode] = useState(defaults.replyMode);
   // どれも空文字が「既定のまま」。モードを切り替えても、書いたものは消さずに取っておく
@@ -40,6 +41,7 @@ export function CreateRoomForm({ defaults, aiDefaults, onCreated }: CreateRoomFo
         name,
         // 空欄なら合言葉なしで作る
         passcode: passcode === '' ? undefined : passcode,
+        audience,
         aiMode,
         // 意見モードでは使わない値なので送らない
         replyMode: aiMode === 'chat' ? replyMode : undefined,
@@ -153,19 +155,32 @@ export function CreateRoomForm({ defaults, aiDefaults, onCreated }: CreateRoomFo
       </div>
 
       <label className="field">
+        <span className="field-label">対象</span>
+        <select
+          className="field-input"
+          value={audience}
+          onChange={(e) => setAudience(e.target.value === 'adult' ? 'adult' : 'kids')}
+        >
+          <option value="kids">子ども向け（画面はひらがな中心、AIは小学生向けに話す）</option>
+          <option value="adult">大人向け（画面は漢字まじり、AIはプロジェクトの相談相手になる）</option>
+        </select>
+        <span className="field-hint">部屋を作ったあとは変えられません。</span>
+      </label>
+
+      <label className="field">
         <span className="field-label">AIのモード</span>
         <select
           className="field-input"
           value={aiMode}
           onChange={(e) => setAiMode(e.target.value === 'opinion' ? 'opinion' : 'chat')}
         >
-          <option value="chat">会話モード（AIが子どもの話し相手になる）</option>
+          <option value="chat">会話モード（AIが話し相手になる）</option>
           <option value="opinion">意見モード（AIは見ていて、頼まれたら意見を言う）</option>
         </select>
         <span className="field-hint">
           {aiMode === 'opinion'
-            ? '子どもの発言にAIは返事をしません。「AIに いけんを きく」を押したときだけ、そこまでのやり取りに意見を言います。'
-            : '子どもがAIに話しかけると返事をします。部屋を作ったあとでも変えられます。'}
+            ? `参加者の発言にAIは返事をしません。「${audience === 'adult' ? 'AIの意見を聞く' : 'AIに いけんを きく'}」を押したときだけ、そこまでのやり取りに意見を言います。`
+            : '参加者がAIに話しかけると返事をします。部屋を作ったあとでも変えられます。'}
         </span>
       </label>
 
@@ -177,7 +192,9 @@ export function CreateRoomForm({ defaults, aiDefaults, onCreated }: CreateRoomFo
             value={replyMode}
             onChange={(e) => setReplyMode(e.target.value === 'always' ? 'always' : 'mention')}
           >
-            <option value="mention">呼ばれたら返す（@AI か「AIにきく」ボタン）</option>
+            <option value="mention">
+              呼ばれたら返す（@AI か「{audience === 'adult' ? 'AIに質問' : 'AIに きく'}」ボタン）
+            </option>
             <option value="always">毎回返す</option>
           </select>
         </label>
@@ -187,7 +204,7 @@ export function CreateRoomForm({ defaults, aiDefaults, onCreated }: CreateRoomFo
       {aiMode === 'chat' ? (
         <AiBrainFields
           mode="chat"
-          defaults={aiDefaults.chat}
+          defaults={aiDefaults[audience].chat}
           options={models}
           model={chatModel}
           onModelChange={setChatModel}
@@ -197,7 +214,7 @@ export function CreateRoomForm({ defaults, aiDefaults, onCreated }: CreateRoomFo
       ) : (
         <AiBrainFields
           mode="opinion"
-          defaults={aiDefaults.opinion}
+          defaults={aiDefaults[audience].opinion}
           options={models}
           model={opinionModel}
           onModelChange={setOpinionModel}
